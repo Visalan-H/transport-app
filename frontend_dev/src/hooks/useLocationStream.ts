@@ -7,20 +7,20 @@ export interface BusLocation {
 }
 
 export function useLocationStream() {
-    const [busLocation, setBusLocation] = useState<BusLocation | null>(null);
+    const [busLocations, setBusLocations] = useState<BusLocation[]>([]);
     const sourceRef = useRef<EventSource | null>(null);
 
     useEffect(() => {
         sourceRef.current = new EventSource('http://localhost:3000/stream');
 
         sourceRef.current.onmessage = (event) => {
-            const data: BusLocation = JSON.parse(event.data);
-            setBusLocation(data);
+            const data = JSON.parse(event.data) as BusLocation[];
+            setBusLocations(data);
         };
 
-        sourceRef.current.onerror = () => {
-            console.error('EventSource connection error');
-            sourceRef.current?.close();
+        sourceRef.current.onerror = (error) => {
+            // Don't close the connection - EventSource will automatically attempt to reconnect
+            console.error('EventSource connection error, will auto-retry:', error);
         };
 
         return () => {
@@ -28,5 +28,5 @@ export function useLocationStream() {
         };
     }, []);
 
-    return busLocation;
+    return busLocations;
 }

@@ -1,29 +1,27 @@
-import { redis, RedisClient, type BunRequest } from 'bun';
+import type { BunRequest } from 'bun';
 
+const busLocations = new Map<string, { lat: number; lng: number }>();
 const controllers = new Set<ReadableStreamDefaultController>();
-const pubClient = new RedisClient();
-const subClient = await redis.duplicate();
 
-await pubClient.connect();
-await subClient.connect();
+interface BusUpdate {
+    name: string;
+    lat: number;
+    lng: number;
+}
 
-const streamHeaders = {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive',
-    'Access-Control-Allow-Origin': '*',
-};
+export const handleUpdate = async (req: BunRequest) => {
+    const data = (await req.json()) as BusUpdate | BusUpdate[];
 
-await subClient.subscribe('bus_updates', (msg) => {
-    const data = `data: ${msg}\n\n`;
-    for (const controller of controllers) {
-        try {
-            controller.enqueue(data);
-        } catch (e) {
-            controllers.delete(controller);
+    const updates = Array.isArray(data) ? data : [data];
+
+    for (const bus of updates) {
+        if (bus.name && typeof bus.lat === 'number' && typeof bus.lng === 'number') {
+            busLocations.set(bus.name, { lat: bus.lat, lng: bus.lng });
         }
     }
-});
+
+    return new Response('OK');
+};
 
 export const handleStream = (req: BunRequest) => {
     const signal = req.signal;
@@ -31,20 +29,39 @@ export const handleStream = (req: BunRequest) => {
         new ReadableStream({
             start: (controller) => {
                 controllers.add(controller);
+
+                const interval = setInterval(() => {
+                    const currentState = Array.from(busLocations.entries()).map(([name, loc]) => ({
+                        name: name,
+                        lat: loc.lat,
+                        lng: loc.lng,
+                    }));
+                    const message = `data: ${JSON.stringify(currentState)}\n\n`;
+
+                    try {
+                        controller.enqueue(message);
+                    } catch (e) {
+                        clearInterval(interval);
+                        controllers.delete(controller);
+                    }
+                }, 2000);
+
                 signal.addEventListener('abort', () => {
+                    clearInterval(interval);
                     controllers.delete(controller);
                     try {
                         controller.close();
-                    } catch (e) {}
+                    } catch {}
                 });
             },
         }),
-        { headers: streamHeaders },
+        {
+            headers: {
+                'Content-Type': 'text/event-stream',
+                'Cache-Control': 'no-cache',
+                Connection: 'keep-alive',
+                'Access-Control-Allow-Origin': '*',
+            },
+        },
     );
-};
-
-export const handleUpdate = async (req: BunRequest) => {
-    const data = await req.json();
-    await pubClient.publish('bus_updates', JSON.stringify(data));
-    return new Response('Update Received');
 };

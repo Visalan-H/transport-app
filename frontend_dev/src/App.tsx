@@ -1,17 +1,18 @@
 import { useState } from 'react';
-import { MapComponent } from './components/MapComponent';
-import { ThemeToggle } from './components/ThemeToggle';
+import { MapComponent } from './components/MapComponent/MapComponent';
+import { ThemeToggle } from './components/ThemeToggle/ThemeToggle';
 import { useLocationStream } from './hooks/useLocationStream';
+import './App.css';
 
 type StyleName = 'bright' | 'dark';
 
 export default function App() {
     const [selectedStyle, setSelectedStyle] = useState<StyleName>('bright');
-    const busLocation = useLocationStream();
+    const busLocations = useLocationStream();
 
     return (
-        <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
-            <MapComponent busLocation={busLocation} selectedStyle={selectedStyle} />
+        <div className="app-container">
+            <MapComponent busLocations={busLocations} selectedStyle={selectedStyle} />
             <ThemeToggle selectedStyle={selectedStyle} onToggle={setSelectedStyle} />
         </div>
     );
