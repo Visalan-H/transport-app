@@ -2,7 +2,7 @@ import { useState, useMemo, memo } from 'react';
 import Map, { Marker } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './MapComponent.css';
-import type { BusLocation } from '../../../../types';
+import type { BusLocation } from '../../../types';
 
 interface MapComponentProps {
     busLocations: BusLocation[];
@@ -49,7 +49,8 @@ export const MapComponent = memo(function MapComponent({ busLocations, selectedS
                 setHasUserMoved(true);
                 setViewState(evt.viewState);
             }}
-            style={{ width: '100%', height: '100%' }}
+            // className="map-container"
+            // style={{width:}}
             mapStyle={mapStyle}
         >
             {validBuses.map((bus) => (

@@ -1,12 +1,8 @@
+import type { BusLocation } from '../types';
+
 const BUS_COUNT = 60;
 
-type Bus = {
-    name: string;
-    lat: number;
-    lng: number;
-};
-
-const buses: Bus[] = Array.from({ length: BUS_COUNT }, (_, i) => ({
+const buses: BusLocation[] = Array.from({ length: BUS_COUNT }, (_, i) => ({
     name: `bus${i + 1}`,
     lat: 13.0827 + (Math.random() - 0.5) * 0.02,
     lng: 80.2707 + (Math.random() - 0.5) * 0.02,

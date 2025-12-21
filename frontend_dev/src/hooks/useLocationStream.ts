@@ -1,10 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-
-export interface BusLocation {
-    lat: number;
-    lng: number;
-    name: string;
-}
+import type { BusLocation } from '../../../types';
 
 export function useLocationStream() {
     const [busLocations, setBusLocations] = useState<BusLocation[]>([]);

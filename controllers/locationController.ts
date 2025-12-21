@@ -1,17 +1,35 @@
 import type { BunRequest } from 'bun';
+import type { BusLocation } from '../types';
 
 const busLocations = new Map<string, { lat: number; lng: number }>();
 const controllers = new Set<ReadableStreamDefaultController>();
 
-interface BusUpdate {
-    name: string;
-    lat: number;
-    lng: number;
-}
+const startGlobalInterval = () => {
+    setInterval(() => {
+        const currentState: BusLocation[] = [];
+
+        busLocations.forEach((loc, name) => {
+            currentState.push({ name, lat: loc.lat, lng: loc.lng });
+        });
+
+        const message = `data: ${JSON.stringify(currentState)}\n\n`;
+
+        // Send to ALL connected clients
+        for (const controller of Array.from(controllers)) {
+            try {
+                controller.enqueue(message);
+            } catch (e) {
+                console.log(e);
+                controllers.delete(controller);
+            }
+        }
+    }, 2000);
+};
+
+let intervalStarted = false;
 
 export const handleUpdate = async (req: BunRequest) => {
-    const data = (await req.json()) as BusUpdate | BusUpdate[];
-
+    const data = (await req.json()) as BusLocation | BusLocation[];
     const updates = Array.isArray(data) ? data : [data];
 
     for (const bus of updates) {
@@ -30,24 +48,13 @@ export const handleStream = (req: BunRequest) => {
             start: (controller) => {
                 controllers.add(controller);
 
-                const interval = setInterval(() => {
-                    const currentState = Array.from(busLocations.entries()).map(([name, loc]) => ({
-                        name: name,
-                        lat: loc.lat,
-                        lng: loc.lng,
-                    }));
-                    const message = `data: ${JSON.stringify(currentState)}\n\n`;
-
-                    try {
-                        controller.enqueue(message);
-                    } catch (e) {
-                        clearInterval(interval);
-                        controllers.delete(controller);
-                    }
-                }, 2000);
+                // Start global interval on first client
+                if (!intervalStarted) {
+                    startGlobalInterval();
+                    intervalStarted = true;
+                }
 
                 signal.addEventListener('abort', () => {
-                    clearInterval(interval);
                     controllers.delete(controller);
                     try {
                         controller.close();
