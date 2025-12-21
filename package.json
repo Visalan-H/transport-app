@@ -6,6 +6,8 @@
     "scripts": {
         "dev": "bun --watch index.ts",
         "sim": "bun simulation/sim.ts",
+        "batch": "bun batcher/batcher.ts",
+        "vite": "cd frontend && bun dev",
         "format": "prettier --write ."
     },
     "devDependencies": {

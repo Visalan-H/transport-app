@@ -2,10 +2,10 @@ import { useState, useMemo, memo } from 'react';
 import Map, { Marker } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './MapComponent.css';
-import type { BusLocation } from '../../../../types';
+import type { BusDetails } from '../../../../types';
 
 interface MapComponentProps {
-    busLocations: BusLocation[];
+    busLocations: BusDetails[];
     selectedStyle: string;
 }
 
@@ -56,6 +56,7 @@ export const MapComponent = memo(function MapComponent({ busLocations, selectedS
                 <Marker key={bus.name} longitude={bus.lng} latitude={bus.lat} anchor="bottom">
                     <div className="bus-marker-container">
                         <div className="bus-marker-label">{bus.name}</div>
+                        <div className="bus-marker-timestamp">{new Date(bus.timestamp).toLocaleTimeString()}</div>
                         <div className="bus-marker-dot" />
                     </div>
                 </Marker>

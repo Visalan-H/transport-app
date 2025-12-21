@@ -3,7 +3,7 @@ import { serveIndex } from './controllers/mainController';
 
 Bun.serve({
     port: 3000,
-    idleTimeout: 255,
+    // idleTimeout: 255,
     routes: {
         '/': serveIndex,
         '/stream': handleStream,
