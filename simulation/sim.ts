@@ -1,41 +1,33 @@
-import type { BusDetails } from '../types';
+import type { BusDetails, BusText } from '../types';
 
-const BUS_COUNT = 60;
-const INTERVAL = 5000; // 2 seconds
+const BUS_COUNT = parseInt(Bun.env.BUS_COUNT || '100');
+const INTERVAL = parseInt(Bun.env.INTERVAL || '5000'); // 2 seconds
 
 const buses: BusDetails[] = Array.from({ length: BUS_COUNT }, (_, i) => ({
-    name: `bus${i + 1}`,
+    id: Math.floor(Math.random() * 1000),
     lat: 13.0827 + (Math.random() - 0.5) * 0.02,
     lng: 80.2707 + (Math.random() - 0.5) * 0.02,
     timestamp: Date.now(),
 }));
 
 const moveBus = (bus: BusDetails) => {
-    // simple random walk (good enough for demo)
     bus.lat += (Math.random() - 0.5) * 0.0008;
     bus.lng += (Math.random() - 0.5) * 0.0008;
-    bus.timestamp = Date.now(); // IMPORTANT
+    bus.timestamp = Date.now();
 };
 
 const simulateMovement = () => {
     buses.forEach(moveBus);
 
-    // fire all updates concurrently
-    buses.forEach((bus) =>
+    buses.forEach((bus) => {
+        const payload: BusText = `${bus.id},${bus.lat},${bus.lng},${bus.timestamp}`;
+
         fetch('http://localhost:4000/update', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(bus),
-        }).catch(() => {}),
-    );
-
-    console.log(
-        `${new Date().toLocaleTimeString()} sent ${BUS_COUNT} updates`,
-        buses
-            .slice(0, 3)
-            .map((b) => `${b.name}: (${b.lat.toFixed(4)}, ${b.lng.toFixed(4)})`)
-            .join(' | '),
-    );
+            headers: { 'Content-Type': 'text/plain' },
+            body: payload,
+        }).catch(() => {});
+    });
 };
 
 console.log(`Simulating ${BUS_COUNT} buses`);

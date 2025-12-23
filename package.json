@@ -8,6 +8,7 @@
         "sim": "bun simulation/sim.ts",
         "batch": "bun batcher/batcher.ts",
         "vite": "cd frontend && bun dev",
+        "vite:i": "cd frontend && bun i && bun dev",
         "format": "prettier --write ."
     },
     "devDependencies": {

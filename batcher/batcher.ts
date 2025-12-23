@@ -1,22 +1,34 @@
-import type { BusDetails } from '../types';
+import type { BusDetails, BusText } from '../types';
 
-let buffer: BusDetails[] = [];
+let buffer: BusText[] = [];
 
-const BATCH_INTERVAL = 5000;
-const TARGET_URL = 'http://localhost:3000/update';
+const INTERVAL = parseInt(Bun.env.INTERVAL || '5000');
+const TARGET_URL = Bun.env.TARGET_URL || 'http://localhost:3000/update';
+const BATCHER_PORT = parseInt(Bun.env.BATCHER_PORT || '4000');
 let totalRequests = 0;
 
 Bun.serve({
-    port: 4000,
+    port: BATCHER_PORT,
 
     routes: {
         '/update': {
             async POST(req: Request): Promise<Response> {
-                const data = (await req.json()) as BusDetails;
-                buffer.push(data);
+                const text = (await req.text()) as BusText;
+                buffer.push(text);
                 totalRequests++;
                 console.log('So far got ' + totalRequests + ' requests');
                 return new Response('OK');
+            },
+        },
+        '/health': {
+            async GET(req: Request): Promise<Response> {
+                return new Response(
+                    JSON.stringify({
+                        status: 'OK',
+                        buffer: buffer.length,
+                        totalRequests,
+                    }),
+                );
             },
         },
     },
@@ -26,14 +38,20 @@ Bun.serve({
 setInterval(async () => {
     if (buffer.length === 0) return;
 
-    const batch: BusDetails[] = [...buffer];
+    const batch = [...buffer];
     buffer = [];
+
+    const payload: BusDetails[] = batch.map((bus) => {
+        // console.log(bus.sp);
+        const [id, lat, lng, timestamp] = bus.split(',').map(Number) as [number, number, number, number];
+        return { id, lat, lng, timestamp };
+    });
 
     try {
         await fetch(TARGET_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(batch),
+            body: JSON.stringify(payload),
         });
 
         console.log(`[BATCH] sent ${batch.length}`);
@@ -41,6 +59,6 @@ setInterval(async () => {
         // retry on failure
         buffer.unshift(...batch);
     }
-}, BATCH_INTERVAL);
+}, INTERVAL);
 
-console.log('Batcher running on http://localhost:4000');
+console.log('Batcher running on http://localhost:' + BATCHER_PORT);

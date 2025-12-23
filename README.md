@@ -19,4 +19,5 @@ A simple bus tracking app.
 - `bun sim` - runs the simulation script `simulation/sim.ts` which POSTs random location updates (including `timestamp`) to `/update` every 2 seconds.
 - `bun batch` - runs the batcher script `batcher/batcher.ts`.
 - `bun vite` - starts the frontend development server (Vite in `frontend/`).
-- `bun run format` - formats code using Prettier.
+- `bun vite:i` - installs dependencies and starts the frontend development server.
+- `bun format` - formats code using Prettier.

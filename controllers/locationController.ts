@@ -1,22 +1,24 @@
 import type { BunRequest } from 'bun';
 import type { BusDetails } from '../types';
+import { isBus } from '../utils/validations';
 
-const busLocations = new Map<string, { lat: number; lng: number; timestamp: number }>();
+const busLocations = new Map<number, { lat: number; lng: number; timestamp: number }>();
 const controllers = new Set<ReadableStreamDefaultController>();
 
 let totalRequests = 0;
+
+const INTERVAL = parseInt(Bun.env.INTERVAL || '5000');
 
 const startGlobalInterval = () => {
     setInterval(() => {
         const currentState: BusDetails[] = [];
 
-        busLocations.forEach((loc, name) => {
-            currentState.push({ name, lat: loc.lat, lng: loc.lng, timestamp: loc.timestamp });
+        busLocations.forEach((loc, id) => {
+            currentState.push({ id, lat: loc.lat, lng: loc.lng, timestamp: loc.timestamp });
         });
 
         const message = `data: ${JSON.stringify(currentState)}\n\n`;
 
-        // Send to ALL connected clients
         for (const controller of Array.from(controllers)) {
             try {
                 controller.enqueue(message);
@@ -25,7 +27,7 @@ const startGlobalInterval = () => {
                 controllers.delete(controller);
             }
         }
-    }, 2000);
+    }, INTERVAL);
 };
 
 let intervalStarted = false;
@@ -36,15 +38,10 @@ export const handleUpdate = async (req: BunRequest) => {
     const updates = Array.isArray(data) ? data : [data];
 
     for (const bus of updates) {
-        if (
-            bus.name &&
-            typeof bus.lat === 'number' &&
-            typeof bus.lng === 'number' &&
-            typeof bus.timestamp === 'number'
-        ) {
-            const prev = busLocations.get(bus.name);
+        if (bus && isBus(bus)) {
+            const prev = busLocations.get(bus.id);
             if (!prev || bus.timestamp > prev.timestamp) {
-                busLocations.set(bus.name, { lat: bus.lat, lng: bus.lng, timestamp: bus.timestamp });
+                busLocations.set(bus.id, { lat: bus.lat, lng: bus.lng, timestamp: bus.timestamp });
             }
         }
     }
@@ -60,7 +57,6 @@ export const handleStream = (req: BunRequest) => {
             start: (controller) => {
                 controllers.add(controller);
 
-                // Start global interval on first client
                 if (!intervalStarted) {
                     startGlobalInterval();
                     intervalStarted = true;

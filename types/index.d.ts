@@ -1,6 +1,8 @@
 export type BusDetails = {
-    name: string;
+    id: number;
     lat: number;
     lng: number;
     timestamp: number;
 };
+
+export type BusText = `${number},${number},${number},${number}`;
