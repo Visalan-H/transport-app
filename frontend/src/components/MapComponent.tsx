@@ -3,6 +3,7 @@ import Map, { Marker } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { BusDetails } from '../../../types';
 import { useTheme } from '../context/ThemeContext';
+import { useNearbyBus } from '@/hooks/useNearbyBuses';
 
 type MapComponentProps = {
     busLocations: BusDetails[];
@@ -10,6 +11,7 @@ type MapComponentProps = {
 
 export const MapComponent = memo(({ busLocations }: MapComponentProps) => {
     const { theme } = useTheme();
+
     const [viewState, setViewState] = useState({ longitude: 80.2707, latitude: 13.0827, zoom: 13 });
     const [hasUserMoved, setHasUserMoved] = useState(false);
 
@@ -18,6 +20,8 @@ export const MapComponent = memo(({ busLocations }: MapComponentProps) => {
         !hasUserMoved && validBuses[0]
             ? { ...viewState, longitude: validBuses[0].lng, latitude: validBuses[0].lat }
             : viewState;
+
+    const { userLocation } = useNearbyBus(busLocations);
 
     return (
         <Map
@@ -42,6 +46,17 @@ export const MapComponent = memo(({ busLocations }: MapComponentProps) => {
                     </div>
                 </Marker>
             ))}
+
+            {userLocation && (
+                <Marker longitude={userLocation.lng} latitude={userLocation.lat}>
+                    <div className="flex flex-col items-center">
+                        <div className="bg-white text-[#282A37] px-1.5 py-0.5 text-xs font-bold border border-red-500">
+                            My location
+                        </div>
+                        <div className="w-3 h-3 bg-red-500 rounded-full" />
+                    </div>
+                </Marker>
+            )}
         </Map>
     );
 });

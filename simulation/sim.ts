@@ -4,7 +4,7 @@ const BUS_COUNT = parseInt(Bun.env.BUS_COUNT || '100');
 const INTERVAL = parseInt(Bun.env.INTERVAL || '5000'); // 2 seconds
 
 const buses: BusDetails[] = Array.from({ length: BUS_COUNT }, (_, i) => ({
-    id: Math.floor(Math.random() * 1000),
+    id: i + 1,
     lat: 13.0827 + (Math.random() - 0.5) * 0.02,
     lng: 80.2707 + (Math.random() - 0.5) * 0.02,
     timestamp: Date.now(),

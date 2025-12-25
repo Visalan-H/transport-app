@@ -10,7 +10,7 @@ export default function App() {
         <div className="relative w-screen h-screen">
             <MapComponent busLocations={buses} />
             <ThemeToggle />
-            <AppDrawer />
+            <AppDrawer busLocations={buses} />
         </div>
     );
 }
