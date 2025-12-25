@@ -13,13 +13,10 @@ export function useNearbyBus(busLocations: BusDetails[]) {
                 lat: position.coords.latitude,
                 lng: position.coords.longitude,
             });
-            console.log(position);
-            // alert(`Latitude: ${position.coords.latitude}, Longitude: ${position.coords.longitude}`);
         };
 
         const handleError = (err: GeolocationPositionError) => {
             console.error(err);
-            alert(`Error getting location: ${err.message}`);
         };
 
         navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
@@ -47,10 +44,6 @@ export function useNearbyBus(busLocations: BusDetails[]) {
             }))
             .sort((a, b) => a.distance - b.distance);
     }, [busLocations, location]);
-
-    // useEffect(() => {
-    //     console.log("User location updated:", location);
-    // }, [location]);
 
     return {
         nearbyBuses,

@@ -1,23 +1,24 @@
 import { useState } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
-import { useNearbyBus } from '@/hooks/useNearbyBuses';
 import type { BusDetails } from '../../../types';
 
+type NearbyBus = BusDetails & { distance: number };
+
 type AppDrawerProps = {
-    busLocations: BusDetails[];
+    nearbyBuses: NearbyBus[];
 };
 
-export function AppDrawer({ busLocations }: AppDrawerProps) {
+export function AppDrawer({ nearbyBuses }: AppDrawerProps) {
     const [expanded, setExpanded] = useState(false);
-    const { nearbyBuses } = useNearbyBus(busLocations);
 
     return (
         <div
-            className={`fixed bottom-0 left-0 right-0 bg-background border-t border-border z-1000 transition-all duration-500 ${expanded ? 'h-[45vh]' : 'h-16'}`}
+            className={`bg-background border-t border-border rounded-t-2xl transition-all duration-500 shrink-0 ${expanded ? '' : 'h-16'}`}
+            style={{ minHeight: '4rem', height: expanded ? '45dvh' : '4rem' }}
         >
             <button
                 onClick={() => setExpanded(!expanded)}
-                className="w-full h-16 px-4 flex items-center justify-between"
+                className="w-full h-16 px-4 flex items-center justify-between shrink-0 rounded-t-2xl"
             >
                 <h2 className="font-semibold text-lg">Nearby Buses</h2>
                 {expanded ? <ChevronDown size={24} /> : <ChevronUp size={24} />}
@@ -32,11 +33,8 @@ export function AppDrawer({ busLocations }: AppDrawerProps) {
                         >
                             <div>
                                 <h3 className="font-semibold">{bus.id}</h3>
-                                <p className="text-sm text-muted-foreground">{bus.distance} km away</p>
+                                <p className="text-sm text-muted-foreground">{bus.distance.toFixed(2)} km away</p>
                             </div>
-                            {/* <div className="text-right">
-                                <p className="font-semibold">{bus.eta}</p>
-                            </div> */}
                         </div>
                     ))}
                 </div>
