@@ -14,7 +14,6 @@ export function useLocationStream() {
         };
 
         sourceRef.current.onerror = (error) => {
-            // Don't close the connection - EventSource will automatically attempt to reconnect
             console.error('EventSource connection error, will auto-retry:', error);
         };
 

@@ -1,11 +1,13 @@
-import { useState, useMemo, memo, useCallback } from 'react';
-import Map, { Marker } from 'react-map-gl/maplibre';
+import { useState, useMemo, memo, useCallback, useRef } from 'react';
+import Map, { Marker, AttributionControl } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
+
 import type { BusDetails } from '../../../types';
+import type { MapRef, ViewStateChangeEvent } from 'react-map-gl/maplibre';
 import { useTheme } from '../context/ThemeContext';
 import { BusMarker } from './BusMarker';
 import { SEC_Bus_Routes } from '../constants/BusIdMap';
-import MemoizedLocate from '@/constants/icons/Locate';
+import { MemoizedLocate } from '@/constants/MemoizedLocate';
 
 type MapComponentProps = {
     busLocations: BusDetails[];
@@ -21,10 +23,12 @@ const BusMarkerItem = memo(
         <Marker longitude={bus.lng} latitude={bus.lat} anchor="bottom">
             <div className="flex flex-col items-center">
                 <BusMarker />
-                <div className="bg-white text-[#282A37] px-1.5 py-0.5 text-xs font-bold border border-red-500 mt-1">
+                <div className="bg-card text-card-foreground px-1.5 py-0.5 text-xs font-bold border border-red-500 mt-1">
                     {SEC_Bus_Routes[bus.id] || bus.id}
                 </div>
-                <div className="bg-white text-gray-800 text-[10px]">{new Date(bus.timestamp).toLocaleTimeString()}</div>
+                <div className="bg-card text-card-foreground text-[10px]">
+                    {new Date(bus.timestamp).toLocaleTimeString()}
+                </div>
             </div>
         </Marker>
     ),
@@ -41,6 +45,8 @@ export const MapComponent = memo(({ busLocations, userLocation }: MapComponentPr
     const [viewState, setViewState] = useState({ longitude: 80.2707, latitude: 13.0827, zoom: 13 });
     const [hasUserMoved, setHasUserMoved] = useState(false);
 
+    const mapRef = useRef<MapRef>(null);
+
     const validBuses = useMemo(() => busLocations.filter((b) => b?.lat != null && b?.lng != null), [busLocations]);
     const currentViewState =
         !hasUserMoved && validBuses[0]
@@ -48,31 +54,39 @@ export const MapComponent = memo(({ busLocations, userLocation }: MapComponentPr
             : viewState;
 
     const zoomToUser = useCallback(() => {
-        if (userLocation) {
-            setViewState((prev) => ({ ...prev, latitude: userLocation.lat, longitude: userLocation.lng, zoom: 15 }));
+        if (userLocation && mapRef.current) {
+            mapRef.current.flyTo({
+                center: [userLocation.lng, userLocation.lat],
+                zoom: 15,
+                duration: 3000,
+            });
             setHasUserMoved(true);
         }
     }, [userLocation]);
 
+    const handleMove = useCallback((e: ViewStateChangeEvent) => {
+        setHasUserMoved(true);
+        setViewState(e.viewState);
+    }, []);
+
     return (
         <Map
             {...currentViewState}
-            onMove={(e) => {
-                setHasUserMoved(true);
-                setViewState(e.viewState);
-            }}
-            attributionControl={{ compact: true }}
-            style={{ width: '100%', height: '100%' }}
+            onMove={handleMove}
+            ref={mapRef}
+            style={{ width: '100%', height: '100%', borderRadius: '0.5rem' }}
+            attributionControl={false}
             mapStyle={`https://tiles.openfreemap.org/styles/${theme}`}
         >
             {validBuses.map((bus) => (
                 <BusMarkerItem key={bus.id} bus={bus} />
             ))}
+            <AttributionControl position="top-left" />
 
             {userLocation && (
                 <Marker longitude={userLocation.lng} latitude={userLocation.lat}>
                     <div className="flex flex-col items-center">
-                        <div className="bg-white text-[#282A37] px-1.5 py-0.5 text-xs font-bold border border-red-500">
+                        <div className="will-change-transform bg-card text-card-foreground px-1.5 py-0.5 text-xs font-bold border border-red-500">
                             My location
                         </div>
                         <div className="relative h-10 w-10">
@@ -86,7 +100,7 @@ export const MapComponent = memo(({ busLocations, userLocation }: MapComponentPr
             <button
                 onClick={zoomToUser}
                 disabled={!userLocation}
-                className="absolute bottom-16 right-4 z-10 bg-white dark:bg-gray-800 text-gray-800 dark:text-white p-2 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+                className=" w-12 h-12 flex justify-center items-center absolute bottom-3 right-3 z-10 bg-white dark:bg-gray-800 text-gray-800 dark:text-white p-2 rounded-2xl shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
                 title="Zoom to my location"
             >
                 <MemoizedLocate />
