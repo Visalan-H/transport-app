@@ -1,19 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import type { BusDetails } from '../../../types';
+import { SEC_Bus_Routes } from '@/constants/BusIdMap';
+import { LoadingSpinner } from './LoadingSpinner';
 
 type NearbyBus = BusDetails & { distance: number };
 
 type AppDrawerProps = {
     nearbyBuses: NearbyBus[];
+    isLoadingLocation?: boolean;
 };
 
-export function AppDrawer({ nearbyBuses }: AppDrawerProps) {
+export function AppDrawer({ nearbyBuses, isLoadingLocation }: AppDrawerProps) {
     const [expanded, setExpanded] = useState(false);
+    const [isVisible, setIsVisible] = useState(false);
+
+    useEffect(() => {
+        // Trigger animation after component mounts
+        const timer = setTimeout(() => setIsVisible(true), 100);
+        return () => clearTimeout(timer);
+    }, []);
 
     return (
         <div
-            className={`bg-background border-t border-x mx-2 border-border rounded-t-lg transition-all duration-500 shrink-0 min-h-16 ${expanded ? 'h-[45dvh]' : 'h-16'}`}
+            className={`bg-background border-t border-x mx-2 border-border rounded-t-lg transition-all duration-500 shrink-0 min-h-16 ${
+                expanded ? 'h-[45dvh]' : 'h-16'
+            } ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}
         >
             <button
                 onClick={() => setExpanded(!expanded)}
@@ -25,17 +37,29 @@ export function AppDrawer({ nearbyBuses }: AppDrawerProps) {
 
             {expanded && (
                 <div className="px-4 pb-4 space-y-3 overflow-y-auto h-[calc(100%-4rem)]">
-                    {nearbyBuses.map((bus) => (
-                        <div
-                            key={bus.id}
-                            className="p-3 border border-border rounded flex justify-between items-center"
-                        >
-                            <div>
-                                <h3 className="font-semibold">{bus.id}</h3>
-                                <p className="text-sm text-muted-foreground">{bus.distance.toFixed(2)} km away</p>
-                            </div>
+                    {isLoadingLocation ? (
+                        <div className="flex items-center justify-center h-32">
+                            <LoadingSpinner text="Finding your location..." size="sm" />
                         </div>
-                    ))}
+                    ) : nearbyBuses.length === 0 ? (
+                        <div className="flex items-center justify-center h-32">
+                            <p className="text-muted-foreground text-sm">No buses nearby</p>
+                        </div>
+                    ) : (
+                        nearbyBuses.slice(0, 10).map((bus) => (
+                            <div
+                                key={bus.id}
+                                className="p-3 border border-border rounded flex justify-between items-center"
+                            >
+                                <div>
+                                    <h3 className="font-semibold">{SEC_Bus_Routes[bus.id]}</h3>
+                                    <p className="text-sm text-muted-foreground">
+                                        {(bus.distance * 1000).toFixed(0)} m away
+                                    </p>
+                                </div>
+                            </div>
+                        ))
+                    )}
                 </div>
             )}
         </div>

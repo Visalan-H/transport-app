@@ -1,11 +1,11 @@
 import { useState, useMemo, memo, useCallback, useRef } from 'react';
 import Map, { Marker, AttributionControl } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
-
 import type { BusDetails } from '../../../types';
 import type { MapRef, ViewStateChangeEvent } from 'react-map-gl/maplibre';
 import { useTheme } from '../context/ThemeContext';
 import { BusMarker } from './BusMarker';
+import { LoadingSpinner } from './LoadingSpinner';
 import { SEC_Bus_Routes } from '../constants/BusIdMap';
 import { MemoizedLocate } from '@/constants/MemoizedLocate';
 
@@ -21,13 +21,19 @@ type BusMarkerItemProps = {
 const BusMarkerItem = memo(
     ({ bus }: BusMarkerItemProps) => (
         <Marker longitude={bus.lng} latitude={bus.lat} anchor="bottom">
-            <div className="flex flex-col items-center">
+            <div className="flex flex-col items-center gap-1">
                 <BusMarker />
-                <div className="bg-card text-card-foreground px-1.5 py-0.5 text-xs font-bold border border-red-500 mt-1">
-                    {SEC_Bus_Routes[bus.id] || bus.id}
-                </div>
-                <div className="bg-card text-card-foreground text-[10px]">
-                    {new Date(bus.timestamp).toLocaleTimeString()}
+                <div className="bg-card shadow-md border border-border rounded px-2 py-1 backdrop-blur-sm">
+                    <div className="text-xs font-semibold text-card-foreground tracking-wide font-sans">
+                        {SEC_Bus_Routes[bus.id] || bus.id}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground text-center font-light">
+                        {new Date(bus.timestamp).toLocaleTimeString(undefined, {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                        })}
+                    </div>
                 </div>
             </div>
         </Marker>
@@ -44,6 +50,7 @@ export const MapComponent = memo(({ busLocations, userLocation }: MapComponentPr
 
     const [viewState, setViewState] = useState({ longitude: 80.2707, latitude: 13.0827, zoom: 13 });
     const [hasUserMoved, setHasUserMoved] = useState(false);
+    const [isMapLoading, setIsMapLoading] = useState(true);
 
     const mapRef = useRef<MapRef>(null);
 
@@ -70,41 +77,51 @@ export const MapComponent = memo(({ busLocations, userLocation }: MapComponentPr
     }, []);
 
     return (
-        <Map
-            {...currentViewState}
-            onMove={handleMove}
-            ref={mapRef}
-            style={{ width: '100%', height: '100%', borderRadius: '0.5rem' }}
-            attributionControl={false}
-            mapStyle={`https://tiles.openfreemap.org/styles/${theme}`}
-        >
-            {validBuses.map((bus) => (
-                <BusMarkerItem key={bus.id} bus={bus} />
-            ))}
-            <AttributionControl position="top-left" />
-
-            {userLocation && (
-                <Marker longitude={userLocation.lng} latitude={userLocation.lat}>
-                    <div className="flex flex-col items-center">
-                        <div className="will-change-transform bg-card text-card-foreground px-1.5 py-0.5 text-xs font-bold border border-red-500">
-                            My location
-                        </div>
-                        <div className="relative h-10 w-10">
-                            <span className="absolute inset-0 m-auto h-full w-full animate-ping rounded-full bg-blue-400 opacity-40"></span>
-                            <div className="absolute inset-0 m-auto h-3 w-3 rounded-full bg-blue-500 shadow-lg shadow-blue-500/80"></div>
-                        </div>
-                    </div>
-                </Marker>
+        <>
+            {isMapLoading && (
+                <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-lg">
+                    <LoadingSpinner text="Loading map..." size="md" />
+                </div>
             )}
-
-            <button
-                onClick={zoomToUser}
-                disabled={!userLocation}
-                className=" w-12 h-12 flex justify-center items-center absolute bottom-3 right-3 z-10 bg-white dark:bg-gray-800 text-gray-800 dark:text-white p-2 rounded-2xl shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
-                title="Zoom to my location"
+            <Map
+                {...currentViewState}
+                onMove={handleMove}
+                onLoad={() => setIsMapLoading(false)}
+                ref={mapRef}
+                style={{ width: '100%', height: '100%', borderRadius: '0.5rem' }}
+                attributionControl={false}
+                mapStyle={`https://tiles.openfreemap.org/styles/${theme}`}
             >
-                <MemoizedLocate />
-            </button>
-        </Map>
+                {validBuses.map((bus) => (
+                    <BusMarkerItem key={bus.id} bus={bus} />
+                ))}
+                <AttributionControl position="top-left" />
+
+                {userLocation && (
+                    <Marker longitude={userLocation.lng} latitude={userLocation.lat}>
+                        <div className="flex flex-col items-center gap-1">
+                            <div className="bg-card shadow-md border border-border rounded px-2 py-1 backdrop-blur-sm">
+                                <div className="text-xs font-semibold text-card-foreground tracking-wide">
+                                    My Location
+                                </div>
+                            </div>
+                            <div className="relative h-10 w-10">
+                                <span className="absolute inset-0 m-auto h-full w-full animate-ping rounded-full bg-blue-400 opacity-40"></span>
+                                <div className="absolute inset-0 m-auto h-3 w-3 rounded-full bg-blue-500 shadow-lg shadow-blue-500/80"></div>
+                            </div>
+                        </div>
+                    </Marker>
+                )}
+
+                <button
+                    onClick={zoomToUser}
+                    disabled={!userLocation}
+                    className="w-12 h-12 flex justify-center items-center absolute bottom-3 right-3 z-10 bg-card text-card-foreground border border-border p-2 rounded-2xl shadow-lg hover:bg-primary hover:text-primary-foreground transition-colors disabled:opacity-50"
+                    title="Zoom to my location"
+                >
+                    <MemoizedLocate />
+                </button>
+            </Map>
+        </>
     );
 });

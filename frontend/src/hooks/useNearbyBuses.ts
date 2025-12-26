@@ -4,19 +4,24 @@ import calculateDistance from '@/utils/calculateDistance';
 
 export function useNearbyBus(busLocations: BusDetails[]) {
     const [location, setLocation] = useState({ lat: 13.085553497844336, lng: 80.27162759382163 });
+    const [isLoadingLocation, setIsLoadingLocation] = useState(() => !!navigator.geolocation);
 
     useEffect(() => {
-        if (!navigator.geolocation) return;
+        if (!navigator.geolocation) {
+            return;
+        }
 
         const handleSuccess = (position: GeolocationPosition) => {
             setLocation({
                 lat: position.coords.latitude,
                 lng: position.coords.longitude,
             });
+            setIsLoadingLocation(false);
         };
 
         const handleError = (err: GeolocationPositionError) => {
             console.error(err);
+            setIsLoadingLocation(false);
         };
 
         navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
@@ -49,5 +54,6 @@ export function useNearbyBus(busLocations: BusDetails[]) {
         nearbyBuses,
         userLocation: location,
         hasBusesNearby: nearbyBuses.length > 0,
+        isLoadingLocation,
     };
 }
