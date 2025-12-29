@@ -42,7 +42,6 @@ setInterval(async () => {
     buffer = [];
 
     const payload: BusDetails[] = batch.map((bus) => {
-        // console.log(bus.sp);
         const [id, lat, lng, timestamp] = bus.split(',').map(Number) as [number, number, number, number];
         return { id, lat, lng, timestamp };
     });
