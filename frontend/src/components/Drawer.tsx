@@ -3,15 +3,18 @@ import { ChevronUp, ChevronDown } from 'lucide-react';
 import type { BusDetails } from '../../../types';
 import { SEC_Bus_Routes } from '@/constants/BusIdMap';
 import { LoadingSpinner } from './LoadingSpinner';
+import type { MapRef } from 'react-map-gl/maplibre';
+import useZoom from '@/hooks/useZoom';
 
 type NearbyBus = BusDetails & { distance: number };
 
 type AppDrawerProps = {
     nearbyBuses: NearbyBus[];
     isLoadingLocation?: boolean;
+    mapRef: React.RefObject<MapRef | null>;
 };
 
-export function AppDrawer({ nearbyBuses, isLoadingLocation }: AppDrawerProps) {
+export function AppDrawer({ nearbyBuses, isLoadingLocation, mapRef }: AppDrawerProps) {
     const [expanded, setExpanded] = useState(false);
     const [isVisible, setIsVisible] = useState(false);
 
@@ -20,6 +23,10 @@ export function AppDrawer({ nearbyBuses, isLoadingLocation }: AppDrawerProps) {
         const timer = setTimeout(() => setIsVisible(true), 100);
         return () => clearTimeout(timer);
     }, []);
+
+    const handleClick = (lat: number, lng: number) => {
+        useZoom({ lat, lng, mapRef });
+    };
 
     return (
         <div
@@ -49,7 +56,8 @@ export function AppDrawer({ nearbyBuses, isLoadingLocation }: AppDrawerProps) {
                         nearbyBuses.slice(0, 10).map((bus) => (
                             <div
                                 key={bus.id}
-                                className="p-3 border border-border rounded flex justify-between items-center"
+                                onClick={() => handleClick(bus.lat, bus.lng)}
+                                className="p-3 border border-border rounded flex justify-between items-center cursor-pointer"
                             >
                                 <div>
                                     <h3 className="font-semibold">{SEC_Bus_Routes[bus.id]}</h3>

@@ -4,10 +4,14 @@ import { AppDrawer } from './components/Drawer';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { useLocationStream } from './hooks/useLocationStream';
 import { useNearbyBus } from './hooks/useNearbyBuses';
+import { useRef } from 'react';
+import type { MapRef } from 'react-map-gl/maplibre';
 
 export default function App() {
     const { busLocations, isLoading: isLoadingBuses, error } = useLocationStream();
     const { nearbyBuses, userLocation, isLoadingLocation } = useNearbyBus(busLocations);
+
+    const mapRef = useRef<MapRef>(null);
 
     if (isLoadingBuses) {
         return (
@@ -52,9 +56,9 @@ export default function App() {
                 </div>
             )}
             <div className="flex-1 relative min-h-0 px-2 pb-1.5 will-change-[height]">
-                <MapComponent busLocations={busLocations} userLocation={userLocation} />
+                <MapComponent busLocations={busLocations} userLocation={userLocation} mapRef={mapRef} />
             </div>
-            <AppDrawer nearbyBuses={nearbyBuses} isLoadingLocation={isLoadingLocation} />
+            <AppDrawer nearbyBuses={nearbyBuses} isLoadingLocation={isLoadingLocation} mapRef={mapRef} />
         </div>
     );
 }
