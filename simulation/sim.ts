@@ -1,7 +1,7 @@
 import type { BusDetails, BusText } from '../types';
 
-const BUS_COUNT = parseInt(Bun.env.BUS_COUNT || '100');
-const INTERVAL = parseInt(Bun.env.INTERVAL || '5000'); // 2 seconds
+const BUS_COUNT = 100;
+const INTERVAL = 5000; // 2 seconds
 
 const buses: BusDetails[] = Array.from({ length: BUS_COUNT }, (_, i) => ({
     id: i + 1,

@@ -1,5 +1,5 @@
 import type { BunRequest } from 'bun';
-import type { BusDetails } from '../types';
+import type { BusDetails } from '../../types';
 import { isBus } from '../utils/validations';
 
 const busLocations = new Map<number, { lat: number; lng: number; timestamp: number }>();

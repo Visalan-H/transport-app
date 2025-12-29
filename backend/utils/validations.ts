@@ -1,4 +1,4 @@
-import type { BusDetails } from '../types';
+import type { BusDetails } from '../../types';
 
 export const isBus = (obj: any): obj is BusDetails => {
     return (
