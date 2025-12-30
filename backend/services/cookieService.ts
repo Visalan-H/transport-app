@@ -7,7 +7,7 @@ const MAX_AGE = Bun.env.SESSION_MAX_AGE ? parseInt(Bun.env.SESSION_MAX_AGE) : 7 
 const cookieOptions = {
     httpOnly: true,
     secure: Bun.env.NODE_ENV === 'production',
-    sameSite: 'lax' as const,
+    sameSite: 'strict' as const,
     path: '/',
     maxAge: MAX_AGE,
 };

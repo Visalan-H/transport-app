@@ -1,19 +1,21 @@
-import { serveIndex } from './controllers/mainController';
 import { authRoutes } from './routes/authRoutes';
 import { locationRoutes } from './routes/locationRoutes';
+import { handlePreflight, wrapRoutes } from './services/corsService';
+import { startOtpCleanupJob } from './jobs/otpCleanup';
 
-const SERVER_PORT = parseInt(Bun.env.SERVER_PORT || '3000');
+// Start background jobs
+startOtpCleanupJob();
 
 Bun.serve({
-    port: SERVER_PORT,
+    port: Bun.env.PORT ? Number(Bun.env.PORT) : 3000,
     routes: {
-        '/': serveIndex,
-        ...authRoutes,
-        ...locationRoutes,
+        ...wrapRoutes(authRoutes),
+        ...wrapRoutes(locationRoutes),
     },
-    fetch() {
+    fetch(req) {
+        if (req.method === 'OPTIONS') return handlePreflight();
         return new Response('Not Found', { status: 404 });
     },
 });
 
-console.log('Server running successfully at http://localhost:' + SERVER_PORT);
+console.log(`Server running at http://localhost:${Bun.env.PORT || 3000}`);
