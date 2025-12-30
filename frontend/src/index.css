@@ -162,3 +162,51 @@ body,
     background: var(--primary);
     color: var(--primary-foreground);
 }
+
+.underline-animated {
+    position: relative;
+    text-decoration: none;
+}
+
+.underline-animated::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 2px;
+    left: 0;
+    bottom: -4px;
+    background-color: currentColor;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s ease-out;
+}
+
+.underline-animated:hover::before {
+    transform: scaleX(1);
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+    border: 1px solid var(--border);
+    -webkit-text-fill-color: var(--foreground);
+    -webkit-box-shadow:
+        0 0 0px 1000px var(--background) inset,
+        0 0 0 1px var(--border) inset;
+    caret-color: var(--foreground);
+    transition:
+        background-color 9999s ease-out,
+        color 9999s ease-out;
+}
+
+input::spelling-error,
+select::spelling-error,
+textarea::spelling-error {
+    color: var(--foreground) !important;
+}
