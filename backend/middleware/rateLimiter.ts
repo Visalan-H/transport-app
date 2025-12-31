@@ -8,7 +8,8 @@ const limiter = new RateLimiterMemory({
 
 export const withRateLimit = (handler: Function) => {
     return async (req: BunRequest) => {
-        const ip = req.headers.get('x-forwarded-for') || 'unknown';
+        const ip =
+            req.headers.get('x-forwarded-for')?.split(',')[0] || req.headers.get('cf-connecting-ip') || 'unknown';
         try {
             await limiter.consume(ip);
             return await handler(req);

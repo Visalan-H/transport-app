@@ -2,11 +2,16 @@ import { User } from '../services/userService';
 import { Otp } from '../services/otpService';
 import { sendOtpEmail } from '../utils/sendOtp';
 import { generateAndSetCookie, clearCookie, decodeCookie } from '../services/cookieService';
+import { isEmailAllowed } from '../config/validEmails';
 import { randomInt } from 'crypto';
 import type { BunRequest } from 'bun';
 
 export const handleSendOtp = async (req: BunRequest) => {
     const { email } = (await req.json()) as { email: string };
+
+    if (!isEmailAllowed(email)) {
+        return Response.json({ success: false, error: 'Email not authorized' }, { status: 403 });
+    }
 
     const otp = randomInt(100000, 999999).toString();
     const otpHash = await Bun.password.hash(otp);

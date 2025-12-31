@@ -1,5 +1,4 @@
 import { MapComponent } from '@/components/MapComponent';
-import { Header } from '@/components/Header';
 import { AppDrawer } from '@/components/Drawer';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useLocationStream } from '@/hooks/useLocationStream';

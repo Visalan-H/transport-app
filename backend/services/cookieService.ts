@@ -1,8 +1,8 @@
 import type { BunRequest } from 'bun';
 import { SignJWT, jwtVerify } from 'jose';
 
-const SECRET = new TextEncoder().encode(Bun.env.SECRET_KEY || 'default');
-const MAX_AGE = Bun.env.SESSION_MAX_AGE ? parseInt(Bun.env.SESSION_MAX_AGE) : 7 * 24 * 60 * 60;
+const SECRET = new TextEncoder().encode(Bun.env.JOSE_SECRET_KEY);
+const MAX_AGE = parseInt(Bun.env.SESSION_MAX_AGE || '604800');
 
 const cookieOptions = {
     httpOnly: true,

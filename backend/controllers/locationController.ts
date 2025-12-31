@@ -7,7 +7,7 @@ const controllers = new Set<ReadableStreamDefaultController>();
 
 let totalRequests = 0;
 
-const INTERVAL = parseInt(Bun.env.INTERVAL || '5000');
+const SSE_INTERVAL = parseInt(Bun.env.INTERVAL || '5000');
 
 const startGlobalInterval = () => {
     setInterval(() => {
@@ -27,7 +27,7 @@ const startGlobalInterval = () => {
                 controllers.delete(controller);
             }
         }
-    }, INTERVAL);
+    }, SSE_INTERVAL);
 };
 
 let intervalStarted = false;

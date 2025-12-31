@@ -7,7 +7,7 @@ import { startOtpCleanupJob } from './jobs/otpCleanup';
 startOtpCleanupJob();
 
 Bun.serve({
-    port: Bun.env.PORT ? Number(Bun.env.PORT) : 3000,
+    port: Number(Bun.env.SERVER_PORT || 3000),
     routes: {
         ...wrapRoutes(authRoutes),
         ...wrapRoutes(locationRoutes),
@@ -18,4 +18,4 @@ Bun.serve({
     },
 });
 
-console.log(`Server running at http://localhost:${Bun.env.PORT || 3000}`);
+console.log(`Server running at http://localhost:${Bun.env.SERVER_PORT || 3000}`);

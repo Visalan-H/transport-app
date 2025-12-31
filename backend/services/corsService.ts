@@ -1,8 +1,10 @@
+const CORS_ORIGIN = Bun.env.CORS_ORIGIN || 'http://localhost:5173';
+
 export const corsHeaders = {
-    'Access-Control-Allow-Origin': 'http://localhost:5173',
+    'Access-Control-Allow-Origin': CORS_ORIGIN,
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
     Vary: 'Origin',
 };
 
