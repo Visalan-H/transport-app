@@ -1,6 +1,6 @@
 import { db } from '../config/db';
 import { otps } from '../models/otp';
-import { eq, sql } from 'drizzle-orm';
+import { eq, lte } from 'drizzle-orm';
 
 export const Otp = {
     async create(email: string, otpHash: string) {
@@ -18,6 +18,9 @@ export const Otp = {
     },
 
     async deleteExpired() {
-        await db.delete(otps).where(sql`${otps.createdAt} < datetime('now', '-10 minutes')`);
+        const expirationMinutes = Number(Bun.env.OTP_EXPIRATION_MINUTES);
+        const expirationTime = new Date(Date.now() - expirationMinutes * 60 * 1000);
+
+        await db.delete(otps).where(lte(otps.createdAt, expirationTime.toISOString()));
     },
 };

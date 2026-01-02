@@ -5,9 +5,14 @@ import { generateAndSetCookie, clearCookie, decodeCookie } from '../services/coo
 import { isEmailAllowed } from '../config/validEmails';
 import { randomInt } from 'crypto';
 import type { BunRequest } from 'bun';
+import { isValidEmail, isValidPassword, isValidUsername, isValidOtp } from '../utils/validations';
 
 export const handleSendOtp = async (req: BunRequest) => {
     const { email } = (await req.json()) as { email: string };
+
+    if (!email || !isValidEmail(email)) {
+        return Response.json({ success: false, error: 'Invalid email format' });
+    }
 
     if (!isEmailAllowed(email)) {
         return Response.json({ success: false, error: 'Email not authorized' }, { status: 403 });
@@ -35,11 +40,30 @@ export const handleRegister = async (req: BunRequest) => {
         otp: string;
     };
 
+    if (!username || !isValidUsername(username)) {
+        return Response.json(
+            { error: 'Username must be 3-20 characters (letters, numbers, underscores)' },
+            { status: 400 },
+        );
+    }
+
+    if (!email || !isValidEmail(email)) {
+        return Response.json({ error: 'Invalid email format' }, { status: 400 });
+    }
+
+    if (!password || !isValidPassword(password)) {
+        return Response.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
+    }
+
+    if (!otp || !isValidOtp(otp)) {
+        return Response.json({ error: 'OTP must be 6 digits' }, { status: 400 });
+    }
+
     const otpRecord = await Otp.findByEmail(email);
     if (!otpRecord) return Response.json({ error: 'Send OTP first' }, { status: 400 });
 
-    const isValidOtp = await Bun.password.verify(otp, otpRecord.otpHash);
-    if (!isValidOtp) return Response.json({ error: 'Invalid OTP' }, { status: 401 });
+    const otpMatched = await Bun.password.verify(otp, otpRecord.otpHash);
+    if (!otpMatched) return Response.json({ error: 'Invalid OTP' }, { status: 401 });
 
     await Otp.delete(email);
 
@@ -57,6 +81,14 @@ export const handleRegister = async (req: BunRequest) => {
 
 export const handleLogin = async (req: BunRequest) => {
     const { email, password } = (await req.json()) as { email: string; password: string };
+
+    if (!email || !isValidEmail(email)) {
+        return Response.json({ error: 'Invalid email format' }, { status: 400 });
+    }
+
+    if (!password || password.length === 0) {
+        return Response.json({ error: 'Password is required' }, { status: 400 });
+    }
 
     const user = await User.findByEmail(email);
     if (!user) return Response.json({ error: 'Invalid credentials' }, { status: 401 });

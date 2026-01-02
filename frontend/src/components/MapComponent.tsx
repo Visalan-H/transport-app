@@ -7,7 +7,7 @@ import { useTheme } from '../context/ThemeContext';
 import { LoadingSpinner } from './LoadingSpinner';
 import { MemoizedLocate } from '@/constants/MemoizedLocate';
 import BusMarkerItem from './BusMarkerItem';
-import useZoom from '@/hooks/useZoom';
+import useZoom from '@/utils/zoomTo';
 
 type MapComponentProps = {
     busLocations: BusDetails[];

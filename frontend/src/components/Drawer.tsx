@@ -4,7 +4,7 @@ import type { BusDetails } from '../../../types';
 import { SEC_Bus_Routes } from '@/constants/BusIdMap';
 import { LoadingSpinner } from './LoadingSpinner';
 import type { MapRef } from 'react-map-gl/maplibre';
-import useZoom from '@/hooks/useZoom';
+import useZoom from '@/utils/zoomTo';
 
 type NearbyBus = BusDetails & { distance: number };
 

@@ -1,6 +1,7 @@
 import { handleStream, handleUpdate } from '../controllers/locationController';
+import { verifyUser } from '../middleware/verifyUser';
 
 export const locationRoutes = {
-    '/stream': handleStream,
-    '/update': { POST: handleUpdate },
+    '/stream': verifyUser(handleStream),
+    '/update': { POST: verifyUser(handleUpdate) },
 };

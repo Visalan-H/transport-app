@@ -4,7 +4,7 @@ import { memo } from 'react';
 import { Marker, type MapRef } from 'react-map-gl/maplibre';
 import type { BusDetails } from '../../../types';
 import { useCallback } from 'react';
-import useZoom from '@/hooks/useZoom';
+import useZoom from '@/utils/zoomTo';
 
 type BusMarkerItemProps = {
     bus: BusDetails;
