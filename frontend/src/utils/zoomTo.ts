@@ -6,7 +6,7 @@ type UseZoomArgs = {
     mapRef: React.RefObject<MapRef | null>;
 };
 
-export default function useZoom({ lat, lng, mapRef }: UseZoomArgs) {
+export default function zoomTo({ lat, lng, mapRef }: UseZoomArgs) {
     if (mapRef && mapRef.current) {
         mapRef.current.flyTo({
             center: [lng, lat],

@@ -2,12 +2,13 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Sun, Moon, Menu, X, LogIn, UserPlus, LogOut } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export function Header() {
     const { theme, toggleTheme } = useTheme();
     const { user, logout } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -56,14 +57,22 @@ export function Header() {
                     <>
                         <button
                             onClick={() => navigate('/login')}
-                            className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:text-primary transition-colors rounded-md cursor-pointer"
+                            className={`flex items-center gap-2 px-3 py-1.5 text-sm transition-colors rounded-md cursor-pointer ${
+                                location.pathname === '/login'
+                                    ? 'text-foreground bg-primary/10 hover:bg-primary/20'
+                                    : 'text-foreground hover:text-primary'
+                            }`}
                         >
                             <LogIn size={18} />
                             <span>Login</span>
                         </button>
                         <button
                             onClick={() => navigate('/signup')}
-                            className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground bg-primary/10 hover:bg-primary/20 transition-colors rounded-md cursor-pointer"
+                            className={`flex items-center gap-2 px-3 py-1.5 text-sm transition-colors rounded-md cursor-pointer ${
+                                location.pathname === '/signup'
+                                    ? 'text-foreground bg-primary/10 hover:bg-primary/20'
+                                    : 'text-foreground hover:text-primary'
+                            }`}
                         >
                             <UserPlus size={18} />
                             <span>Sign Up</span>
@@ -114,14 +123,18 @@ export function Header() {
                             <>
                                 <button
                                     onClick={() => handleNavigate('/login')}
-                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground transition-colors ${
+                                        location.pathname === '/login' ? 'bg-muted' : 'hover:bg-muted'
+                                    }`}
                                 >
                                     <LogIn size={18} />
                                     <span>Login</span>
                                 </button>
                                 <button
                                     onClick={() => handleNavigate('/signup')}
-                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground transition-colors ${
+                                        location.pathname === '/signup' ? 'bg-muted' : 'hover:bg-muted'
+                                    }`}
                                 >
                                     <UserPlus size={18} />
                                     <span>Sign Up</span>

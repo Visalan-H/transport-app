@@ -1,0 +1,200 @@
+{
+    "info": {
+        "_postman_id": "f8b2de67-bb7c-46d6-871a-e0b7e8ce2412",
+        "name": "Transport App",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "_exporter_id": "37749343"
+    },
+    "item": [
+        {
+            "name": "/stream",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:3000/stream",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "3000",
+                    "path": [
+                        "stream"
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "/update",
+            "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                    "mode": "raw",
+                    "raw": "[{ \"id\": 1, \"lat\": 12.34, \"lng\": 56.78, \"timestamp\": 1690000000000 }, { \"id\": 2, \"lat\": 11.11, \"lng\": 22.22, \"timestamp\": 1690000001000 }]",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "http://localhost:3000/update",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "3000",
+                    "path": [
+                        "update"
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "/auth/send-otp",
+            "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{ \"email\": \"\" }",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "http://localhost:3000/auth/send-otp",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "3000",
+                    "path": [
+                        "auth",
+                        "send-otp"
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "/auth/register",
+            "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{ \"username\": \"Test\", \"email\": \"\", \"password\": \"12345678\", \"otp\": \"123456\" }",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "http://localhost:3000/auth/register",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "3000",
+                    "path": [
+                        "auth",
+                        "register"
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "/auth/login",
+            "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{ \"email\": \"\", \"password\": \"12345678\" }",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "http://localhost:3000/auth/login",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "3000",
+                    "path": [
+                        "auth",
+                        "login"
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "/auth/me",
+            "protocolProfileBehavior": {
+                "disableBodyPruning": true
+            },
+            "request": {
+                "method": "GET",
+                "header": [],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{ \"authenticated\": true, \"user\": { \"id\": 0, \"email\": \"\", \"username\": \"Test\" } }",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                },
+                "url": {
+                    "raw": "http://localhost:3000/auth/me",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "3000",
+                    "path": [
+                        "auth",
+                        "me"
+                    ]
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "/auth/logout",
+            "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{ \"authenticated\": true, \"user\": { \"id\": 2, \"email\": \"csroopak@gmail.com\", \"username\": \"Roopak\" } }"
+                },
+                "url": {
+                    "raw": "http://localhost:3000/auth/logout",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "3000",
+                    "path": [
+                        "auth",
+                        "logout"
+                    ]
+                }
+            },
+            "response": []
+        }
+    ]
+}

@@ -24,13 +24,14 @@ export async function generateAndSetCookie(req: BunRequest, userId: number, emai
 export function clearCookie(req: BunRequest) {
     req.cookies.delete('sessionToken');
 }
+
 export async function decodeCookie(req: BunRequest) {
     const token = req.cookies.get('sessionToken');
     if (!token) return null;
 
     try {
         const { payload } = await jwtVerify(token, SECRET);
-        return payload as { id: number; email: string; username: string };
+        return payload;
     } catch {
         return null;
     }

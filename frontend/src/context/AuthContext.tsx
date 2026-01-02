@@ -97,7 +97,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         otp: string,
     ): Promise<{ ok: boolean; message?: string }> => {
         try {
-            console.log(username, email, password, otp);
             const res = await api.post('/auth/register', { username, email, password, otp });
             const data = res.data || {};
             if (res.status >= 200 && res.status < 300 && data.success) {

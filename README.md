@@ -479,7 +479,7 @@ INTERVAL=5000                   # Batch flush interval (ms)
 ## Additional Documentation
 
 - [API_DOCUMENTATION.md](./API_DOCUMENTATION.md) — Complete endpoint reference with request/response examples
-- [BATCHER.md](./BATCHER.md) — Deep dive into the batching service architecture
+- [BATCHER.md](./batcher/BATCHER.md) — Deep dive into the batching service architecture
 
 ---
 

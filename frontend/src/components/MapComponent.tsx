@@ -1,4 +1,4 @@
-import { useState, useMemo, memo, useCallback, useRef } from 'react';
+import { useState, useMemo, memo, useCallback } from 'react';
 import Map, { Marker, AttributionControl } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { BusDetails } from '../../../types';
@@ -7,7 +7,7 @@ import { useTheme } from '../context/ThemeContext';
 import { LoadingSpinner } from './LoadingSpinner';
 import { MemoizedLocate } from '@/constants/MemoizedLocate';
 import BusMarkerItem from './BusMarkerItem';
-import useZoom from '@/utils/zoomTo';
+import zoomTo from '@/utils/zoomTo';
 
 type MapComponentProps = {
     busLocations: BusDetails[];
@@ -24,6 +24,11 @@ export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapCom
 
     // const mapRef = useRef<MapRef>(null);
 
+    const mapStyle =
+        theme === 'dark'
+            ? 'https://tiles.openfreemap.org/styles/dark'
+            : 'https://tiles.openfreemap.org/styles/positron';
+
     const validBuses = useMemo(() => busLocations.filter((b) => b?.lat != null && b?.lng != null), [busLocations]);
     const currentViewState =
         !hasUserMoved && validBuses[0]
@@ -32,10 +37,10 @@ export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapCom
 
     const zoomToUser = useCallback(() => {
         if (userLocation) {
-            useZoom({ lat: userLocation.lat, lng: userLocation.lng, mapRef });
+            zoomTo({ lat: userLocation.lat, lng: userLocation.lng, mapRef });
             setHasUserMoved(true);
         }
-    }, [userLocation]);
+    }, [userLocation, mapRef]);
 
     const handleMove = useCallback((e: ViewStateChangeEvent) => {
         setHasUserMoved(true);
@@ -54,9 +59,15 @@ export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapCom
                 onMove={handleMove}
                 onLoad={() => setIsMapLoading(false)}
                 ref={mapRef}
-                style={{ width: '100%', height: '100%', borderRadius: '0.5rem' }}
+                style={{
+                    width: '100%',
+                    height: '100%',
+                    borderRadius: '0.5rem',
+                    border: '1px solid var(--border)',
+                    boxShadow: '0 2px 3px rgba(0, 0, 0, 0.2)',
+                }}
                 attributionControl={false}
-                mapStyle={`https://tiles.openfreemap.org/styles/${theme}`}
+                mapStyle={mapStyle}
             >
                 {validBuses.map((bus) => (
                     <BusMarkerItem key={bus.id} bus={bus} mapRef={mapRef} />

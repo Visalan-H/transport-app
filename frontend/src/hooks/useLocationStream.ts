@@ -10,7 +10,7 @@ export function useLocationStream() {
 
     useEffect(() => {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-        sourceRef.current = new EventSource(`${apiUrl}/stream`);
+        sourceRef.current = new EventSource(`${apiUrl}/stream`, { withCredentials: true });
 
         sourceRef.current.onopen = () => {
             hasConnectedRef.current = true;
