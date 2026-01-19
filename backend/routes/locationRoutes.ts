@@ -3,5 +3,5 @@ import { verifyUser } from '../middleware/verifyUser';
 
 export const locationRoutes = {
     '/stream': verifyUser(handleStream),
-    '/update': { POST: verifyUser(handleUpdate) },
+    '/update': { POST: handleUpdate },
 };

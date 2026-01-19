@@ -9,8 +9,12 @@ let totalRequests = 0;
 
 const SSE_INTERVAL = parseInt(Bun.env.INTERVAL || '5000');
 
+let intervalId: ReturnType<typeof setInterval> | null = null;
+
 const startGlobalInterval = () => {
-    setInterval(() => {
+    if (intervalId) return; // Already running
+
+    intervalId = setInterval(() => {
         const currentState: BusDetails[] = [];
 
         busLocations.forEach((loc, id) => {
@@ -28,9 +32,17 @@ const startGlobalInterval = () => {
             }
         }
     }, SSE_INTERVAL);
+
+    console.log('[SSE] Interval started');
 };
 
-let intervalStarted = false;
+const stopGlobalInterval = () => {
+    if (intervalId && controllers.size === 0) {
+        clearInterval(intervalId);
+        intervalId = null;
+        console.log('[SSE] Interval stopped - no clients connected');
+    }
+};
 
 export const handleUpdate = async (req: BunRequest) => {
     totalRequests++;
@@ -56,14 +68,11 @@ export const handleStream = (req: BunRequest) => {
         new ReadableStream({
             start: (controller) => {
                 controllers.add(controller);
-
-                if (!intervalStarted) {
-                    startGlobalInterval();
-                    intervalStarted = true;
-                }
+                startGlobalInterval();
 
                 signal.addEventListener('abort', () => {
                     controllers.delete(controller);
+                    stopGlobalInterval();
                     try {
                         controller.close();
                     } catch {}

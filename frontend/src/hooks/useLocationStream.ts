@@ -18,10 +18,15 @@ export function useLocationStream() {
         };
 
         sourceRef.current.onmessage = (event) => {
-            const data = JSON.parse(event.data) as BusDetails[];
-            setBusLocations(data);
-            setIsLoading(false);
-            setError(null);
+            try {
+                const data = JSON.parse(event.data) as BusDetails[];
+                setBusLocations(data);
+                setIsLoading(false);
+                setError(null);
+            } catch (parseError) {
+                console.error('Failed to parse bus location data:', parseError);
+                // Continue listening for next valid message instead of crashing
+            }
         };
 
         sourceRef.current.onerror = () => {

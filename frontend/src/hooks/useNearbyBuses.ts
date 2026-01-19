@@ -3,7 +3,7 @@ import type { BusDetails } from '../../../types';
 import calculateDistance from '@/utils/calculateDistance';
 
 export function useNearbyBus(busLocations: BusDetails[]) {
-    const [location, setLocation] = useState({ lat: 13.085553497844336, lng: 80.27162759382163 });
+    const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
     const [isLoadingLocation, setIsLoadingLocation] = useState(() => !!navigator.geolocation);
 
     useEffect(() => {
@@ -27,20 +27,20 @@ export function useNearbyBus(busLocations: BusDetails[]) {
         navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
             enableHighAccuracy: true,
             timeout: 10000,
-            maximumAge: 0,
+            maximumAge: 5000,
         });
 
         const watcher = navigator.geolocation.watchPosition(handleSuccess, handleError, {
             enableHighAccuracy: true,
             timeout: 10000,
-            maximumAge: 0,
+            maximumAge: 5000,
         });
 
         return () => navigator.geolocation.clearWatch(watcher);
     }, []);
 
     const nearbyBuses = useMemo(() => {
-        if (!location || location.lat === 0) return [];
+        if (!location) return [];
 
         return busLocations
             .map((bus) => ({
