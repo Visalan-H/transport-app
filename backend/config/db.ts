@@ -3,7 +3,7 @@ import { Database } from 'bun:sqlite';
 import { users } from '../models/user';
 import { otps } from '../models/otp';
 
-const sqlite = new Database('./db/otp_service.sqlite');
+const sqlite = new Database('./db/polaris.db');
 
 sqlite.run(`
   CREATE TABLE IF NOT EXISTS users (

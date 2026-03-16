@@ -1,0 +1,50 @@
+services:
+    backend:
+        build:
+            context: .
+            dockerfile: backend/Dockerfile
+        container_name: transport_backend
+        restart: always
+        expose:
+            - '3000'
+        env_file:
+            - ./backend/.env
+        volumes:
+            - ./backend/db:/app/backend/db
+
+    batcher:
+        build:
+            context: .
+            dockerfile: batcher/Dockerfile
+        container_name: transport_batcher
+        restart: always
+        expose:
+            - '4000'
+        env_file:
+            - ./batcher/.env
+        environment:
+            - TARGET_URL=http://backend:3000/update
+        depends_on:
+            - backend
+
+    frontend:
+        build:
+            context: .
+            dockerfile: ./frontend/Dockerfile
+        container_name: transport_frontend
+        restart: always
+        ports:
+            - '80:80'
+        depends_on:
+            - backend
+
+    simulation:
+        build:
+            context: .
+            dockerfile: simulation/Dockerfile
+        container_name: transport_simulation
+        environment:
+            - TARGET_URL=http://batcher:4000/update
+        restart: on-failure
+        depends_on:
+            - batcher

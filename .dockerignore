@@ -1,0 +1,51 @@
+# Git
+.git
+.gitignore
+**/.git
+
+# Dependencies
+**/node_modules
+
+# Build outputs
+**/dist
+**/build
+**/.cache
+**/*.tsbuildinfo
+
+# Database
+backend/db
+
+# Environment files
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Test files
+**/*.test.ts
+**/*.spec.ts
+**/tests
+**/test
+
+# Logs
+**/logs
+**/*.log
+
+# Docs
+**/README.md
+**/*.md
+
+# Docker files
+**/Dockerfile
+docker-compose*.yml
+**/.dockerignore
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+**/*.swp
+**/*.swo

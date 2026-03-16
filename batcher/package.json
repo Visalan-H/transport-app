@@ -1,13 +1,15 @@
 {
-  "name": "batcher",
-  "private": true,
-  "scripts":{
-    "dev" : "bun run --watch index.ts"
-  },
-  "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
-  }
+    "name": "batcher",
+    "private": true,
+    "scripts": {
+        "dev": "bun run --watch index.ts",
+        "format": "bun prettier --write ."
+    },
+    "devDependencies": {
+        "@types/bun": "latest",
+        "prettier": "^3.8.1"
+    },
+    "peerDependencies": {
+        "typescript": "^5"
+    }
 }
