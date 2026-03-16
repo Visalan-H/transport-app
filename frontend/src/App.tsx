@@ -7,6 +7,7 @@ import Signup from './pages/Signup';
 import { Header } from './components/Header';
 import ProtectedRoute from './components/guards/ProtectedRoute';
 import PublicRoute from './components/guards/PublicRoute';
+import Driver from './pages/Driver';
 
 function AppRoutes() {
     return (
@@ -22,6 +23,12 @@ function AppRoutes() {
                         </ProtectedRoute>
                     }
                 />
+                <Route path="/driver" element={
+                    <ProtectedRoute>
+                        <Driver />
+                    </ProtectedRoute>
+                } />
+
                 <Route
                     path="/login"
                     element={

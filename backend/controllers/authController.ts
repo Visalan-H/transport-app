@@ -27,7 +27,7 @@ export const handleSendOtp = async (req: BunRequest) => {
         await sendOtpEmail(email, otp);
         return Response.json({ success: true });
     } catch (error) {
-        console.log(error);
+        // console.log(error);
         return Response.json({ success: false, error: 'Failed to send email' }, { status: 500 });
     }
 };

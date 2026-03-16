@@ -27,20 +27,20 @@ const startGlobalInterval = () => {
             try {
                 controller.enqueue(message);
             } catch (e) {
-                console.log(e);
+                // console.log(e);
                 controllers.delete(controller);
             }
         }
     }, SSE_INTERVAL);
 
-    console.log('[SSE] Interval started');
+    console.log('BATCHER: [SSE] Interval started');
 };
 
 const stopGlobalInterval = () => {
     if (intervalId && controllers.size === 0) {
         clearInterval(intervalId);
         intervalId = null;
-        console.log('[SSE] Interval stopped - no clients connected');
+        console.log('BATCHER: [SSE] Interval stopped - no clients connected');
     }
 };
 
@@ -57,7 +57,7 @@ export const handleUpdate = async (req: BunRequest) => {
             }
         }
     }
-    console.log('So far got ' + totalRequests + ' requests');
+    console.log('BATCHER: So far got ' + totalRequests + ' requests');
 
     return new Response('OK');
 };
