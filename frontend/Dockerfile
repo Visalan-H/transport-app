@@ -1,4 +1,4 @@
-FROM oven/bun:1 AS builder
+FROM oven/bun:1-alpine AS builder
 
 WORKDIR /app/frontend
 
@@ -10,7 +10,7 @@ COPY types /app/types
 
 RUN bun run build
 
-FROM nginx:alpine
+FROM nginx:alpine-slim
 
 COPY --from=builder /app/frontend/dist /usr/share/nginx/html
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf

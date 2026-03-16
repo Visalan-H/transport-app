@@ -49,3 +49,8 @@ Thumbs.db
 .idea
 **/*.swp
 **/*.swo
+
+# Other
+coverage
+tmp
+*.pid
