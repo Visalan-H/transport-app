@@ -1,12 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { Sun, Moon, Menu, X, LogIn, UserPlus, LogOut } from 'lucide-react';
+import { Sun, Moon, Menu, X, LogIn, UserPlus, LogOut, Download } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useInstallPrompt } from '../hooks/useInstallPrompt';
 
 export function Header() {
     const { theme, toggleTheme } = useTheme();
     const { user, logout } = useAuth();
+    const { canInstall, install } = useInstallPrompt();
+    console.log('Install prompt available:', canInstall);
     const navigate = useNavigate();
     const location = useLocation();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -45,6 +48,15 @@ export function Header() {
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-4">
+                {canInstall && (
+                    <button
+                        onClick={install}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:text-primary transition-colors rounded-md cursor-pointer"
+                    >
+                        <Download size={18} />
+                        <span>Install App</span>
+                    </button>
+                )}
                 {user ? (
                     <button
                         onClick={handleLogout}
@@ -101,6 +113,19 @@ export function Header() {
                 {/* Mobile Dropdown Menu */}
                 {mobileMenuOpen && (
                     <div className="absolute right-0 top-full mt-2 w-48 bg-background border border-border rounded-lg shadow-lg py-2 z-50">
+                        {canInstall && (
+                            <button
+                                onClick={async () => {
+                                    await install();
+                                    setMobileMenuOpen(false);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                            >
+                                <Download size={18} />
+                                <span>Install App</span>
+                            </button>
+                        )}
+
                         <button
                             onClick={toggleTheme}
                             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
