@@ -1,12 +1,15 @@
-import { useState, useMemo, memo, useCallback } from 'react';
-import Map, { Marker, AttributionControl } from 'react-map-gl/maplibre';
+import { useState, useMemo, memo, useCallback, useEffect } from 'react';
+import Map, { AttributionControl } from 'react-map-gl/maplibre';
+import type { MapLayerMouseEvent, MapRef, ViewStateChangeEvent } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { BusDetails } from '../../../types';
-import type { MapRef, ViewStateChangeEvent } from 'react-map-gl/maplibre';
 import { useTheme } from '../context/ThemeContext';
 import { LoadingSpinner } from './LoadingSpinner';
 import { MemoizedLocate } from '@/constants/MemoizedLocate';
-import BusMarkerItem from './BusMarkerItem';
+import { BusLayer } from './map/BusLayer';
+import { BusPopup } from './map/BusPopup';
+import { UserLocationMarker } from './map/UserLocationMarker';
+import { registerBusImage } from './map/BusIcon';
 import zoomTo from '@/utils/zoomTo';
 
 type MapComponentProps = {
@@ -21,8 +24,8 @@ export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapCom
     const [viewState, setViewState] = useState({ longitude: 80.2707, latitude: 13.0827, zoom: 13 });
     const [hasUserMoved, setHasUserMoved] = useState(false);
     const [isMapLoading, setIsMapLoading] = useState(true);
-
-    // const mapRef = useRef<MapRef>(null);
+    const [selectedBus, setSelectedBus] = useState<BusDetails | null>(null);
+    const [imageLoaded, setImageLoaded] = useState(false);
 
     const mapStyle =
         theme === 'dark'
@@ -30,10 +33,49 @@ export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapCom
             : 'https://tiles.openfreemap.org/styles/positron';
 
     const validBuses = useMemo(() => busLocations.filter((b) => b?.lat != null && b?.lng != null), [busLocations]);
+
     const currentViewState =
         !hasUserMoved && validBuses[0]
             ? { ...viewState, longitude: validBuses[0].lng, latitude: validBuses[0].lat }
             : viewState;
+
+    const handleMapLoad = useCallback(async () => {
+        setIsMapLoading(false);
+        const map = mapRef.current?.getMap();
+        if (!map) return;
+        await registerBusImage(map);
+        setImageLoaded(true);
+    }, [mapRef]);
+
+    useEffect(() => {
+        const map = mapRef.current?.getMap();
+        if (!map) return;
+        const reloadImage = async () => {
+            await registerBusImage(map);
+            setImageLoaded(true);
+        };
+        map.on('styledata', reloadImage);
+        return () => {
+            map.off('styledata', reloadImage);
+        };
+    }, [mapRef, isMapLoading]);
+
+    const handleMapClick = useCallback(
+        (e: MapLayerMouseEvent) => {
+            const features = e.features;
+            if (features && features.length > 0) {
+                const props = features[0].properties as { id: number };
+                const bus = validBuses.find((b) => b.id === Number(props.id));
+                if (bus) {
+                    setSelectedBus(bus);
+                    zoomTo({ lat: bus.lat, lng: bus.lng, mapRef });
+                }
+            } else {
+                setSelectedBus(null);
+            }
+        },
+        [validBuses, mapRef],
+    );
 
     const zoomToUser = useCallback(() => {
         if (userLocation) {
@@ -57,7 +99,9 @@ export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapCom
             <Map
                 {...currentViewState}
                 onMove={handleMove}
-                onLoad={() => setIsMapLoading(false)}
+                onLoad={handleMapLoad}
+                onClick={handleMapClick}
+                interactiveLayerIds={['bus-icons']}
                 ref={mapRef}
                 style={{
                     width: '100%',
@@ -69,26 +113,11 @@ export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapCom
                 attributionControl={false}
                 mapStyle={mapStyle}
             >
-                {validBuses.map((bus) => (
-                    <BusMarkerItem key={bus.id} bus={bus} mapRef={mapRef} />
-                ))}
-                <AttributionControl position="top-left" />
+                {imageLoaded && <BusLayer buses={validBuses} theme={theme} />}
+                {selectedBus && <BusPopup bus={selectedBus} onClose={() => setSelectedBus(null)} />}
+                {userLocation && <UserLocationMarker location={userLocation} />}
 
-                {userLocation && (
-                    <Marker longitude={userLocation.lng} latitude={userLocation.lat}>
-                        <div className="flex flex-col items-center gap-1">
-                            <div className="bg-card shadow-md border border-border rounded px-2 py-1 backdrop-blur-sm">
-                                <div className="text-xs font-semibold text-card-foreground tracking-wide">
-                                    My Location
-                                </div>
-                            </div>
-                            <div className="relative h-10 w-10">
-                                <span className="absolute inset-0 m-auto h-full w-full animate-ping rounded-full bg-blue-400 opacity-40"></span>
-                                <div className="absolute inset-0 m-auto h-3 w-3 rounded-full bg-blue-500 shadow-lg shadow-blue-500/80"></div>
-                            </div>
-                        </div>
-                    </Marker>
-                )}
+                <AttributionControl position="top-left" />
 
                 <button
                     onClick={zoomToUser}

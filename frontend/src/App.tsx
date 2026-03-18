@@ -11,7 +11,7 @@ import Driver from './pages/Driver';
 
 function AppRoutes() {
     return (
-        <div className="flex flex-col w-screen h-dvh overflow-hidden font-sans">
+        <div className="flex flex-col w-screen h-svh md:h-dvh overflow-hidden font-sans pb-[env(safe-area-inset-bottom)]">
             <Header />
 
             <Routes>
@@ -23,11 +23,14 @@ function AppRoutes() {
                         </ProtectedRoute>
                     }
                 />
-                <Route path="/driver" element={
-                    <ProtectedRoute>
-                        <Driver />
-                    </ProtectedRoute>
-                } />
+                <Route
+                    path="/driver"
+                    element={
+                        <ProtectedRoute>
+                            <Driver />
+                        </ProtectedRoute>
+                    }
+                />
 
                 <Route
                     path="/login"

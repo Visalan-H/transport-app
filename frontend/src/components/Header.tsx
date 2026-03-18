@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { Sun, Moon, Menu, X, LogIn, UserPlus, LogOut, Download } from 'lucide-react';
+import { Sun, Moon, Menu, X, LogIn, UserPlus, LogOut, Download, Bus } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
 
@@ -48,6 +48,17 @@ export function Header() {
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-4">
+                <button
+                    onClick={() => navigate('/driver')}
+                    className={`flex items-center gap-2 px-3 py-1.5 text-sm transition-colors rounded-md cursor-pointer ${
+                        location.pathname === '/driver'
+                            ? 'text-foreground bg-primary/10 hover:bg-primary/20'
+                            : 'text-foreground hover:text-primary'
+                    }`}
+                >
+                    <Bus size={18} />
+                    <span>Driver</span>
+                </button>
                 {canInstall && (
                     <button
                         onClick={install}
@@ -132,6 +143,16 @@ export function Header() {
                         >
                             {theme === 'bright' ? <Moon size={18} /> : <Sun size={18} />}
                             <span>{theme === 'bright' ? 'Dark Mode' : 'Light Mode'}</span>
+                        </button>
+
+                        <button
+                            onClick={() => handleNavigate('/driver')}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground transition-colors ${
+                                location.pathname === '/driver' ? 'bg-muted' : 'hover:bg-muted'
+                            }`}
+                        >
+                            <Bus size={18} />
+                            <span>Driver</span>
                         </button>
 
                         <div className="border-t border-border my-1" />

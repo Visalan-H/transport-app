@@ -2,6 +2,12 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 
 type TrackingState = 'idle' | 'requesting' | 'tracking' | 'error';
 
+type NavigatorWithWakeLock = Navigator & {
+    wakeLock?: {
+        request: (type: 'screen') => Promise<WakeLockSentinel>;
+    };
+};
+
 const SEND_INTERVAL = 5000;
 
 export default function Driver() {
@@ -18,14 +24,14 @@ export default function Driver() {
     const busIdRef = useRef(busId);
     const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
     useEffect(() => {
-
-    busIdRef.current = busId;
-    }, [busId]); 
+        busIdRef.current = busId;
+    }, [busId]);
 
     const acquireWakeLock = async () => {
         try {
-            if ('wakeLock' in navigator) {
-                wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+            const navigatorWithWakeLock = navigator as NavigatorWithWakeLock;
+            if (navigatorWithWakeLock.wakeLock) {
+                wakeLockRef.current = await navigatorWithWakeLock.wakeLock.request('screen');
             }
         } catch {
             // Wake lock not supported or denied — not a blocking issue
@@ -134,7 +140,7 @@ export default function Driver() {
     const isPending = state === 'requesting';
 
     return (
-        <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-6">
+        <div className="h-full min-h-0 bg-background text-foreground flex flex-col items-center justify-center p-6">
             <div className="w-full max-w-sm space-y-6">
                 {/* Header */}
                 <div className="text-center space-y-1">
@@ -178,9 +184,13 @@ export default function Driver() {
 
                 {/* Bus ID input */}
                 <div className="space-y-2">
-                    <label className="block text-sm text-muted-foreground">Bus number</label>
+                    <label className="block text-sm text-muted-foreground" htmlFor="bus-number">
+                        {' '}
+                        Bus number
+                    </label>
                     <input
                         type="number"
+                        id="bus-number"
                         placeholder="e.g. 42"
                         value={busId}
                         onChange={(e) => setBusId(e.target.value)}
