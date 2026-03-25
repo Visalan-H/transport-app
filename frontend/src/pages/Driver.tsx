@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 type TrackingState = 'idle' | 'requesting' | 'tracking' | 'error';
+type Language = 'en' | 'ta';
 
 type NavigatorWithWakeLock = Navigator & {
     wakeLock?: {
@@ -10,13 +11,87 @@ type NavigatorWithWakeLock = Navigator & {
 
 const SEND_INTERVAL = 5000;
 
+const COPY: Record<
+    Language,
+    {
+        english: string;
+        tamil: string;
+        title: string;
+        subtitle: string;
+        notBroadcasting: string;
+        requesting: string;
+        broadcasting: string;
+        errorState: string;
+        busNumber: string;
+        busPlaceholder: string;
+        start: string;
+        stop: string;
+        enterBusFirst: string;
+        geoUnsupported: string;
+        geoDenied: string;
+        geoUnavailable: string;
+        geoTimeout: string;
+        updatesSent: string;
+        lastSent: string;
+        wakeLockHint: string;
+    }
+> = {
+    en: {
+        english: 'English',
+        tamil: 'Tamil',
+        title: 'Driver Mode',
+        subtitle: 'Your location will be shared with students',
+        notBroadcasting: 'Not broadcasting',
+        requesting: 'Getting location...',
+        broadcasting: 'Broadcasting live',
+        errorState: 'Error',
+        busNumber: 'Bus number',
+        busPlaceholder: 'e.g. 42',
+        start: 'Start broadcasting',
+        stop: 'Stop broadcasting',
+        enterBusFirst: 'Enter your bus number first',
+        geoUnsupported: 'Geolocation is not supported on this device',
+        geoDenied: 'Location permission denied. Enable it in your browser settings.',
+        geoUnavailable: 'Location unavailable. Check your GPS signal.',
+        geoTimeout: 'Location request timed out. Try again.',
+        updatesSent: 'Updates sent',
+        lastSent: 'Last sent',
+        wakeLockHint: "Keep your screen on. Your browser doesn't support wake lock.",
+    },
+    ta: {
+        english: 'English',
+        tamil: 'தமிழ்',
+        title: 'ஓட்டுநர் பயன்முறை', // ஓட்டுநர் is the natural word for driver
+        subtitle: 'உங்கள் இருப்பிடம் மாணவர்களுக்கு அனுப்பப்படும்', // more natural phrasing
+        notBroadcasting: 'ஒளிபரப்பு இல்லை',
+        requesting: 'இருப்பிடம் கண்டறிகிறது...', // more natural than பெறுகிறது
+        broadcasting: 'நேரடி ஒளிபரப்பு இயங்குகிறது', // இயங்குகிறது sounds more active
+        errorState: 'பிழை',
+        busNumber: 'பேருந்து எண்',
+        busPlaceholder: 'எ.கா. 42',
+        start: 'தொடங்கு', // shorter — fits the button better
+        stop: 'நிறுத்து', // shorter — fits the button better
+        enterBusFirst: 'பேருந்து எண்ணை உள்ளிடவும்', // removed redundant முதலில்
+        geoUnsupported: 'இந்த சாதனத்தில் இருப்பிட சேவை இல்லை',
+        geoDenied: 'இருப்பிட அனுமதி மறுக்கப்பட்டது. உலாவி அமைப்பில் இயக்கவும்.',
+        geoUnavailable: 'இருப்பிடம் கிடைக்கவில்லை. GPS சரிபார்க்கவும்.',
+        geoTimeout: 'நேரம் முடிந்தது. மீண்டும் முயற்சிக்கவும்.',
+        updatesSent: 'அனுப்பிய புதுப்பிப்புகள்',
+        lastSent: 'கடைசியாக அனுப்பியது',
+        wakeLockHint: 'திரையை அணைக்காதீர்கள். இந்த உலாவி wake lock ஆதரிக்காது.',
+    },
+};
+
 export default function Driver() {
+    const [language, setLanguage] = useState<Language>('en');
     const [busId, setBusId] = useState('');
     const [state, setState] = useState<TrackingState>('idle');
     const [coords, setCoords] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
     const [error, setError] = useState('');
     const [updateCount, setUpdateCount] = useState(0);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+    const t = COPY[language];
+    const isTamil = language === 'ta';
 
     const watchIdRef = useRef<number | null>(null);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -43,7 +118,6 @@ export default function Driver() {
         wakeLockRef.current = null;
     };
 
-    // Re-acquire wake lock when tab becomes visible again (e.g. after switching apps)
     useEffect(() => {
         const handleVisibility = async () => {
             if (document.visibilityState === 'visible' && watchIdRef.current !== null) {
@@ -59,9 +133,7 @@ export default function Driver() {
         fetch('/update', {
             method: 'POST',
             body: payload,
-        }).catch(() => {
-            // Batcher retries failed sends — safe to silently ignore here
-        });
+        }).catch(() => {});
         setUpdateCount((c) => c + 1);
         setLastUpdated(new Date());
     }, []);
@@ -69,11 +141,11 @@ export default function Driver() {
     const startTracking = async () => {
         const trimmedId = busId.trim();
         if (!trimmedId) {
-            setError('Enter your bus number first');
+            setError('enterBusFirst');
             return;
         }
         if (!navigator.geolocation) {
-            setError('Geolocation is not supported on this device');
+            setError('geoUnsupported');
             return;
         }
 
@@ -90,9 +162,9 @@ export default function Driver() {
             },
             (err) => {
                 const messages: Record<number, string> = {
-                    1: 'Location permission denied. Enable it in your browser settings.',
-                    2: 'Location unavailable. Check your GPS signal.',
-                    3: 'Location request timed out. Try again.',
+                    1: 'geoDenied',
+                    2: 'geoUnavailable',
+                    3: 'geoTimeout',
                 };
                 setError(messages[err.code] ?? err.message);
                 setState('error');
@@ -133,126 +205,151 @@ export default function Driver() {
         setLastUpdated(null);
     }, []);
 
-    // Cleanup on unmount
     useEffect(() => () => stopTracking(), [stopTracking]);
 
     const isTracking = state === 'tracking';
     const isPending = state === 'requesting';
 
-    return (
-        <div className="h-full min-h-0 bg-background text-foreground flex flex-col items-center justify-center p-6">
-            <div className="w-full max-w-sm space-y-6">
-                {/* Header */}
-                <div className="text-center space-y-1">
-                    <h1 className="text-2xl font-semibold tracking-tight">Driver Mode</h1>
-                    <p className="text-muted-foreground text-sm">Your location will be shared with students</p>
-                </div>
+    const displayError = error ? (error in t ? t[error as keyof typeof t] : error) : '';
 
-                {/* Status pill */}
-                <div className="flex justify-center">
-                    <span
-                        className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${
+    return (
+        <div className="h-full min-h-0 bg-background text-foreground p-3 md:p-6 flex items-center justify-center">
+            <div className="w-full max-w-md rounded-3xl border border-border/50 bg-card/80 backdrop-blur-xl shadow-2xl p-5 md:p-6 min-h-[78dvh] flex flex-col">
+                <div className="space-y-5">
+                    <div className="flex flex-col gap-3 pb-5 border-b border-border/50 relative">
+                        {/* Language toggle */}
+                        <div className="absolute right-0 top-0">
+                            <button
+                                type="button"
+                                onClick={() => setLanguage((prev) => (prev === 'en' ? 'ta' : 'en'))}
+                                className="group flex h-9 items-center gap-2 rounded-xl border border-border/60 bg-background/80 px-3 text-xs font-bold shadow-sm transition-all hover:bg-secondary/80 hover:shadow"
+                                aria-label="Toggle language"
+                            >
+                                <span
+                                    className={`transition-colors uppercase tracking-wider ${language === 'en' ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}
+                                >
+                                    EN
+                                </span>
+                                <span className="text-border/80 font-normal">|</span>
+                                <span
+                                    className={`transition-colors uppercase tracking-wider ${language === 'ta' ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}
+                                >
+                                    TA
+                                </span>
+                            </button>
+                        </div>
+
+                        {/* Title — smaller font in Tamil to prevent overflow */}
+                        <div className="text-left w-full pt-1 pr-24">
+                            <h1
+                                className={`font-extrabold text-foreground tracking-tight leading-tight mb-1.5 drop-shadow-sm ${
+                                    isTamil ? 'text-2xl sm:text-3xl' : 'text-3xl sm:text-4xl'
+                                }`}
+                            >
+                                {t.title}
+                            </h1>
+                            <p
+                                className={`font-medium text-muted-foreground leading-relaxed ${isTamil ? 'text-xs' : 'text-sm'}`}
+                            >
+                                {t.subtitle}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Bus number input */}
+                    <div className="rounded-2xl border border-border/60 bg-background/50 p-4 shadow-sm">
+                        <p className="text-sm font-semibold text-muted-foreground mb-2 px-1">{t.busNumber}</p>
+                        <input
+                            type="number"
+                            id="bus-number"
+                            placeholder={t.busPlaceholder}
+                            value={busId}
+                            onChange={(e) => setBusId(e.target.value)}
+                            disabled={isTracking || isPending}
+                            className="w-full h-16 rounded-xl border-2 border-border/60 bg-card px-4 text-4xl font-black tracking-widest text-center font-mono focus:outline-none focus:border-primary/60 focus:ring-4 focus:ring-primary/10 disabled:opacity-60 transition-all shadow-inner"
+                        />
+                    </div>
+
+                    {/* Status badge */}
+                    <div
+                        className={`rounded-2xl px-4 py-3 border-2 font-bold text-center transition-colors shadow-sm ${
+                            isTamil ? 'text-sm' : 'text-base'
+                        } ${
                             isTracking
-                                ? 'bg-green-950 text-green-400 border border-green-900'
+                                ? 'bg-green-100/60 text-green-800 border-green-300 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800/50'
                                 : isPending
-                                  ? 'bg-yellow-950 text-yellow-400 border border-yellow-900'
+                                  ? 'bg-amber-100/60 text-amber-800 border-amber-300 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800/50'
                                   : state === 'error'
-                                    ? 'bg-destructive/20 text-destructive border border-destructive/50'
-                                    : 'bg-secondary text-secondary-foreground border border-border'
+                                    ? 'bg-destructive/10 text-destructive border-destructive/30'
+                                    : 'bg-secondary text-secondary-foreground border-border/60'
                         }`}
                     >
-                        <span
-                            className={`w-1.5 h-1.5 rounded-full ${
-                                isTracking
-                                    ? 'bg-green-400 animate-pulse'
-                                    : isPending
-                                      ? 'bg-yellow-400 animate-pulse'
-                                      : state === 'error'
-                                        ? 'bg-destructive'
-                                        : 'bg-muted-foreground'
-                            }`}
-                        />
                         {isTracking
-                            ? 'Broadcasting live'
+                            ? t.broadcasting
                             : isPending
-                              ? 'Getting location...'
+                              ? t.requesting
                               : state === 'error'
-                                ? 'Error'
-                                : 'Not broadcasting'}
-                    </span>
-                </div>
-
-                {/* Bus ID input */}
-                <div className="space-y-2">
-                    <label className="block text-sm text-muted-foreground" htmlFor="bus-number">
-                        {' '}
-                        Bus number
-                    </label>
-                    <input
-                        type="number"
-                        id="bus-number"
-                        placeholder="e.g. 42"
-                        value={busId}
-                        onChange={(e) => setBusId(e.target.value)}
-                        disabled={isTracking || isPending}
-                        className="w-full bg-card border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted-foreground text-lg font-mono focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
-                    />
-                </div>
-
-                {/* Error message */}
-                {error && (
-                    <p className="text-destructive text-sm bg-destructive/10 border border-destructive/20 rounded-lg px-4 py-3">
-                        {error}
-                    </p>
-                )}
-
-                {/* Start / Stop button */}
-                <button
-                    onClick={isTracking ? stopTracking : startTracking}
-                    disabled={isPending}
-                    className={`w-full py-4 rounded-xl font-semibold text-base transition-all disabled:opacity-50 ${
-                        isTracking
-                            ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'
-                            : 'bg-primary hover:bg-primary/90 text-primary-foreground'
-                    }`}
-                >
-                    {isTracking ? 'Stop broadcasting' : isPending ? 'Getting location...' : 'Start broadcasting'}
-                </button>
-
-                {/* Live stats */}
-                {isTracking && coords && (
-                    <div className="bg-card border border-border rounded-xl p-4 space-y-3 text-sm">
-                        <div className="flex justify-between text-muted-foreground">
-                            <span>Latitude</span>
-                            <span className="font-mono text-foreground">{coords.lat.toFixed(6)}</span>
-                        </div>
-                        <div className="flex justify-between text-muted-foreground">
-                            <span>Longitude</span>
-                            <span className="font-mono text-foreground">{coords.lng.toFixed(6)}</span>
-                        </div>
-                        <div className="flex justify-between text-muted-foreground">
-                            <span>Accuracy</span>
-                            <span className="font-mono text-foreground">±{Math.round(coords.accuracy)}m</span>
-                        </div>
-                        <div className="border-t border-border pt-3 flex justify-between text-muted-foreground">
-                            <span>Updates sent</span>
-                            <span className="font-mono text-green-500 dark:text-green-400">{updateCount}</span>
-                        </div>
-                        {lastUpdated && (
-                            <div className="flex justify-between text-muted-foreground">
-                                <span>Last sent</span>
-                                <span className="font-mono text-foreground">{lastUpdated.toLocaleTimeString()}</span>
-                            </div>
-                        )}
+                                ? t.errorState
+                                : t.notBroadcasting}
                     </div>
-                )}
 
-                {/* Keep screen on warning */}
-                {isTracking && !('wakeLock' in navigator) && (
-                    <p className="text-yellow-600 text-xs text-center">
-                        Keep your screen on — your browser doesn't support automatic screen lock prevention.
-                    </p>
-                )}
+                    {error && (
+                        <p className="text-destructive text-sm font-bold bg-destructive/10 border-2 border-destructive/20 rounded-xl px-4 py-3 text-center">
+                            {displayError}
+                        </p>
+                    )}
+                </div>
+
+                {/* Main action button */}
+                <div className="flex-1 flex items-center justify-center py-6 min-h-[240px]">
+                    <button
+                        onClick={isTracking ? stopTracking : startTracking}
+                        disabled={isPending}
+                        className={`aspect-square w-56 sm:w-64 rounded-full shadow-2xl transition-all duration-300 disabled:opacity-60 flex flex-col items-center justify-center px-4 py-6 text-center hover:scale-105 active:scale-95 ${
+                            isTamil ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl md:text-3xl'
+                        } font-extrabold tracking-wide ${
+                            isTracking
+                                ? 'bg-destructive text-destructive-foreground shadow-destructive/40'
+                                : 'bg-primary text-primary-foreground shadow-primary/40'
+                        }`}
+                    >
+                        <span className="w-full break-words leading-snug">
+                            {isTracking ? t.stop : isPending ? t.requesting : t.start}
+                        </span>
+                    </button>
+                </div>
+
+                {/* Stats */}
+                <div className="space-y-3">
+                    {isTracking && coords && (
+                        <div className="rounded-2xl border border-border bg-background px-4 py-3 space-y-2 text-base">
+                            <div className="flex justify-between">
+                                <span className={`text-muted-foreground ${isTamil ? 'text-sm' : ''}`}>
+                                    {t.updatesSent}
+                                </span>
+                                <span className="font-bold text-foreground">{updateCount}</span>
+                            </div>
+                            {lastUpdated && (
+                                <div className="flex justify-between">
+                                    <span className={`text-muted-foreground ${isTamil ? 'text-sm' : ''}`}>
+                                        {t.lastSent}
+                                    </span>
+                                    <span className="font-semibold text-foreground">
+                                        {lastUpdated.toLocaleTimeString()}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {isTracking && !('wakeLock' in navigator) && (
+                        <p
+                            className={`text-amber-700 dark:text-amber-300 text-center ${isTamil ? 'text-xs' : 'text-sm'}`}
+                        >
+                            {t.wakeLockHint}
+                        </p>
+                    )}
+                </div>
             </div>
         </div>
     );

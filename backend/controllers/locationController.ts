@@ -2,12 +2,24 @@ import type { BunRequest } from 'bun';
 import type { BusDetails } from '../../types';
 import { isBus } from '../utils/validations';
 
+type LogLevel = 'info' | 'debug';
+
 const busLocations = new Map<number, { lat: number; lng: number; timestamp: number }>();
 const controllers = new Set<ReadableStreamDefaultController>();
 
 let totalRequests = 0;
 
-const SSE_INTERVAL = parseInt(Bun.env.INTERVAL || '5000');
+const SSE_INTERVAL = parseInt(Bun.env.SSE_INTERVAL || '5000');
+const LOG_LEVEL = (Bun.env.LOG_LEVEL || 'info').toLowerCase();
+const DEBUG_ENABLED = LOG_LEVEL === 'debug';
+
+const log = (level: LogLevel, event: string, meta?: Record<string, unknown>) => {
+    if (level === 'debug' && !DEBUG_ENABLED) return;
+
+    const timestamp = new Date().toISOString();
+    const payload = meta && Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
+    console.log(`[${timestamp}] [backend/location] [${level.toUpperCase()}] ${event}${payload}`);
+};
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -33,14 +45,14 @@ const startGlobalInterval = () => {
         }
     }, SSE_INTERVAL);
 
-    console.log('BATCHER: [SSE] Interval started');
+    log('info', 'sse_interval_started', { intervalMs: SSE_INTERVAL });
 };
 
 const stopGlobalInterval = () => {
     if (intervalId && controllers.size === 0) {
         clearInterval(intervalId);
         intervalId = null;
-        console.log('BATCHER: [SSE] Interval stopped - no clients connected');
+        log('info', 'sse_interval_stopped', { reason: 'no_clients' });
     }
 };
 
@@ -57,7 +69,13 @@ export const handleUpdate = async (req: BunRequest) => {
             }
         }
     }
-    console.log('BATCHER: So far got ' + totalRequests + ' requests');
+    if (totalRequests % 200 === 0) {
+        log('debug', 'update_checkpoint', {
+            totalRequests,
+            trackedBuses: busLocations.size,
+            activeStreamClients: controllers.size,
+        });
+    }
 
     return new Response('OK');
 };
@@ -69,13 +87,15 @@ export const handleStream = (req: BunRequest) => {
             start: (controller) => {
                 controllers.add(controller);
                 startGlobalInterval();
+                log('info', 'sse_client_connected', { activeClients: controllers.size });
 
                 signal.addEventListener('abort', () => {
                     controllers.delete(controller);
                     stopGlobalInterval();
+                    log('info', 'sse_client_disconnected', { activeClients: controllers.size });
                     try {
                         controller.close();
-                    } catch {}
+                    } catch { }
                 });
             },
         }),
@@ -84,7 +104,6 @@ export const handleStream = (req: BunRequest) => {
                 'Content-Type': 'text/event-stream',
                 'Cache-Control': 'no-cache',
                 Connection: 'keep-alive',
-                'Access-Control-Allow-Origin': '*',
             },
         },
     );

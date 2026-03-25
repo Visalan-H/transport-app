@@ -1,10 +1,9 @@
-import { useState, useMemo, memo, useCallback, useEffect } from 'react';
+import { useState, useMemo, memo, useCallback, useEffect, useRef } from 'react';
 import Map, { AttributionControl } from 'react-map-gl/maplibre';
-import type { MapLayerMouseEvent, MapRef, ViewStateChangeEvent } from 'react-map-gl/maplibre';
+import type { MapLayerMouseEvent, MapRef } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { BusDetails } from '../../../types';
 import { useTheme } from '../context/ThemeContext';
-import { LoadingSpinner } from './LoadingSpinner';
 import { MemoizedLocate } from '@/constants/MemoizedLocate';
 import { BusLayer } from './map/BusLayer';
 import { BusPopup } from './map/BusPopup';
@@ -21,11 +20,12 @@ type MapComponentProps = {
 export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapComponentProps) => {
     const { theme } = useTheme();
 
-    const [viewState, setViewState] = useState({ longitude: 80.2707, latitude: 13.0827, zoom: 13 });
-    const [hasUserMoved, setHasUserMoved] = useState(false);
     const [isMapLoading, setIsMapLoading] = useState(true);
     const [selectedBus, setSelectedBus] = useState<BusDetails | null>(null);
     const [imageLoaded, setImageLoaded] = useState(false);
+    const hasUserMovedRef = useRef(false);
+    const hasCenteredOnBusRef = useRef(false);
+    const loadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const mapStyle =
         theme === 'dark'
@@ -33,39 +33,79 @@ export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapCom
             : 'https://tiles.openfreemap.org/styles/positron';
 
     const validBuses = useMemo(() => busLocations.filter((b) => b?.lat != null && b?.lng != null), [busLocations]);
-
-    const currentViewState =
-        !hasUserMoved && validBuses[0]
-            ? { ...viewState, longitude: validBuses[0].lng, latitude: validBuses[0].lat }
-            : viewState;
+    const busesById = useMemo(() => new globalThis.Map(validBuses.map((bus) => [bus.id, bus])), [validBuses]);
 
     const handleMapLoad = useCallback(async () => {
+        if (loadTimeoutRef.current) {
+            clearTimeout(loadTimeoutRef.current);
+            loadTimeoutRef.current = null;
+        }
+
         setIsMapLoading(false);
         const map = mapRef.current?.getMap();
         if (!map) return;
+
+        await registerBusImage(map);
+        setImageLoaded(true);
+    }, [mapRef]);
+
+    const ensureBusImage = useCallback(async () => {
+        const map = mapRef.current?.getMap();
+        if (!map) return;
+
         await registerBusImage(map);
         setImageLoaded(true);
     }, [mapRef]);
 
     useEffect(() => {
+        // Avoid blocking UI forever if tile/style server is slow.
+        loadTimeoutRef.current = setTimeout(() => setIsMapLoading(false), 1800);
+
+        return () => {
+            if (loadTimeoutRef.current) {
+                clearTimeout(loadTimeoutRef.current);
+                loadTimeoutRef.current = null;
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const bootstrap = async () => {
+            const map = mapRef.current?.getMap();
+            if (!map) {
+                if (!cancelled) requestAnimationFrame(bootstrap);
+                return;
+            }
+
+            await ensureBusImage();
+        };
+
+        bootstrap();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [ensureBusImage]);
+
+    useEffect(() => {
+        if (hasUserMovedRef.current || hasCenteredOnBusRef.current || !validBuses.length) return;
+
         const map = mapRef.current?.getMap();
         if (!map) return;
-        const reloadImage = async () => {
-            await registerBusImage(map);
-            setImageLoaded(true);
-        };
-        map.on('styledata', reloadImage);
-        return () => {
-            map.off('styledata', reloadImage);
-        };
-    }, [mapRef, isMapLoading]);
+
+        const firstBus = validBuses[0];
+        map.easeTo({ center: [firstBus.lng, firstBus.lat], duration: 700 });
+        hasCenteredOnBusRef.current = true;
+    }, [validBuses, mapRef]);
 
     const handleMapClick = useCallback(
         (e: MapLayerMouseEvent) => {
             const features = e.features;
             if (features && features.length > 0) {
                 const props = features[0].properties as { id: number };
-                const bus = validBuses.find((b) => b.id === Number(props.id));
+                const bus = busesById.get(Number(props.id));
                 if (bus) {
                     setSelectedBus(bus);
                     zoomTo({ lat: bus.lat, lng: bus.lng, mapRef });
@@ -74,34 +114,36 @@ export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapCom
                 setSelectedBus(null);
             }
         },
-        [validBuses, mapRef],
+        [busesById, mapRef],
     );
 
     const zoomToUser = useCallback(() => {
         if (userLocation) {
             zoomTo({ lat: userLocation.lat, lng: userLocation.lng, mapRef });
-            setHasUserMoved(true);
+            hasUserMovedRef.current = true;
         }
     }, [userLocation, mapRef]);
 
-    const handleMove = useCallback((e: ViewStateChangeEvent) => {
-        setHasUserMoved(true);
-        setViewState(e.viewState);
+    const handleMove = useCallback(() => {
+        hasUserMovedRef.current = true;
     }, []);
 
     return (
         <>
             {isMapLoading && (
-                <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-lg">
-                    <LoadingSpinner text="Loading map..." size="md" />
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-card border border-border rounded-full px-3 py-1.5 text-xs text-muted-foreground shadow flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                    Loading map tiles...
                 </div>
             )}
             <Map
-                {...currentViewState}
+                initialViewState={{ longitude: 80.2707, latitude: 13.0827, zoom: 13 }}
                 onMove={handleMove}
                 onLoad={handleMapLoad}
+                onStyleData={ensureBusImage}
                 onClick={handleMapClick}
                 interactiveLayerIds={['bus-icons']}
+                reuseMaps
                 ref={mapRef}
                 style={{
                     width: '100%',

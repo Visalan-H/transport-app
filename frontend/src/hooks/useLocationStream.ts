@@ -1,6 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
 import type { BusDetails } from '../../../types';
 
+const hasBusSnapshotChanged = (prev: BusDetails[], next: BusDetails[]) => {
+    if (prev.length !== next.length) return true;
+
+    const prevById = new globalThis.Map(prev.map((bus) => [bus.id, bus]));
+
+    for (const bus of next) {
+        const previous = prevById.get(bus.id);
+        if (!previous) return true;
+
+        if (previous.lat !== bus.lat || previous.lng !== bus.lng || previous.timestamp !== bus.timestamp) {
+            return true;
+        }
+    }
+
+    return false;
+};
+
 export function useLocationStream() {
     const [busLocations, setBusLocations] = useState<BusDetails[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -15,12 +32,13 @@ export function useLocationStream() {
         sourceRef.current.onopen = () => {
             hasConnectedRef.current = true;
             setError(null);
+            setIsLoading(false);
         };
 
         sourceRef.current.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data) as BusDetails[];
-                setBusLocations(data);
+                setBusLocations((prev) => (hasBusSnapshotChanged(prev, data) ? data : prev));
                 setIsLoading(false);
                 setError(null);
             } catch (parseError) {

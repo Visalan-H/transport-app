@@ -18,6 +18,8 @@ const BUS_SVG = `<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xml
   <path d="M 5 8 L 35 8 Q 35 5 30 4 L 10 4 Q 5 5 5 8" fill="#FCD34D" opacity="0.5" />
 </svg>`;
 
+let cachedBusImagePromise: Promise<HTMLImageElement> | null = null;
+
 const loadBusImage = (): Promise<HTMLImageElement> =>
     new Promise((resolve, reject) => {
         const img = new Image();
@@ -31,12 +33,19 @@ const loadBusImage = (): Promise<HTMLImageElement> =>
         img.src = url;
     });
 
+const getBusImage = (): Promise<HTMLImageElement> => {
+    if (!cachedBusImagePromise) {
+        cachedBusImagePromise = loadBusImage();
+    }
+    return cachedBusImagePromise;
+};
+
 export const registerBusImage = async (map: maplibregl.Map) => {
     try {
-        const img = await loadBusImage();
-        if (!map.hasImage('bus-icon')) {
-            map.addImage('bus-icon', img, { pixelRatio: 2 });
-        }
+        if (map.hasImage('bus-icon')) return;
+
+        const img = await getBusImage();
+        map.addImage('bus-icon', img, { pixelRatio: 2 });
     } catch (e) {
         console.error('Failed to load bus icon', e);
     }

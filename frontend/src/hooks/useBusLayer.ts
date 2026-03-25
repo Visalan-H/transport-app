@@ -1,6 +1,12 @@
 import { useMemo } from 'react';
 import type { LayerProps } from 'react-map-gl/maplibre';
 
+const timeFormatter = new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+});
+
 export const useBusLayerProps = (theme: string): LayerProps => useMemo(() => ({
     id: 'bus-icons',
     type: 'symbol',
@@ -30,18 +36,14 @@ export const useBusGeoJSON = (
 ) =>
     useMemo(() => ({
         type: 'FeatureCollection' as const,
-        features: validBuses.map(bus => ({
+        features: validBuses.map((bus) => ({
             type: 'Feature' as const,
             geometry: { type: 'Point' as const, coordinates: [bus.lng, bus.lat] },
             properties: {
                 id: bus.id,
                 label: String(routes[bus.id] || bus.id),
                 timestamp: bus.timestamp,
-                timeStr: new Date(bus.timestamp).toLocaleTimeString(undefined, {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                }),
+                timeStr: timeFormatter.format(new Date(bus.timestamp)),
             },
         })),
     }), [validBuses, routes]);

@@ -1,189 +1,138 @@
 # Transport App API Documentation
 
-**Overview:**
+## Overview
 
--   Base server: Bun. Routes are defined in `server.ts` and handlers live in `controllers/`.
--   JSON is the primary request/response format unless otherwise noted.
+- Base server runtime: Bun.
+- Route registration: `backend/server.ts`.
+- Controllers: `backend/controllers/*`.
+- Default payload format: JSON (except `batcher /update` plain text payload).
 
-**Types**
+## Types
 
--   `BusDetails`:
-    -   `id` (number)
-    -   `lat` (number)
-    -   `lng` (number)
-    -   `timestamp` (number)
+- `BusDetails`
+    - `id`: number
+    - `lat`: number
+    - `lng`: number
+    - `timestamp`: number
 
----
+## CORS Behavior
 
-**Routes**
+- CORS is applied in middleware wrappers for all route handlers.
+- Allowed origins are read from `CORS_ORIGIN` and support comma-separated values.
+- Preflight (`OPTIONS`) rejects disallowed origins with `403`.
+- Credentials are enabled (`Access-Control-Allow-Credentials: true`).
 
--   **GET /** : Serve frontend
+## Routes
 
-    -   Description: Returns the application HTML.
-    -   Response: `200 OK` HTML content (`index.html`).
+### GET /stream
 
--   **GET /stream** : Server-Sent Events (SSE) stream of current bus locations _(requires authentication)_
+- Purpose: SSE stream with latest tracked buses.
+- Auth: Required (`sessionToken` cookie, validated by middleware).
+- Response headers include:
+    - `Content-Type: text/event-stream`
+    - `Cache-Control: no-cache`
+    - `Connection: keep-alive`
+    - CORS headers based on request origin.
+- Payload format:
 
-    -   Description: Keeps a persistent SSE connection and periodically pushes the current array of `BusDetails` for all tracked buses.
-    -   Request: No payload. Connection should set `Accept: text/event-stream` (clients typically use `EventSource`). Must include `sessionToken` cookie.
-    -   Authentication: Requires valid session cookie (`sessionToken`). Returns `401` if not authenticated.
-    -   Response headers:
-        -   `Content-Type: text/event-stream`
-        -   `Cache-Control: no-cache`
-        -   `Connection: keep-alive`
-        -   `Access-Control-Allow-Origin: *`
-    -   Event format: Each event body is a single `data:` line containing a JSON array of `BusDetails`, followed by a blank line. Example chunk:
+```text
+data: [{"id":1,"lat":12.34,"lng":56.78,"timestamp":1690000000000}]
 
-        data: [{"id":1,"lat":12.34,"lng":56.78,"timestamp":1690000000000}]
+```
 
-    -   Notes: Interval is controlled by `INTERVAL` env (ms). Clients should reconnect on disconnect.
+### POST /update
 
--   **POST /update** : Update one or more bus locations _(requires authentication)_
+- Purpose: Update one or more bus positions in backend memory.
+- Auth: Not enforced at backend route level; expected caller is internal batcher service.
+- Request content type: `application/json`.
+- Accepts either one `BusDetails` object or an array of `BusDetails`.
+- Response: `200 OK`, body `OK`.
+- Rule: A bus update is applied only if incoming `timestamp` is newer.
 
-    -   Description: Accepts a single `BusDetails` object or an array of them and updates the server's in-memory state. Requires authentication.
-    -   Authentication: Requires valid session cookie (`sessionToken`). Returns `401` if not authenticated.
-    -   Request headers: `Content-Type: application/json`
-    -   Request payload (single):
-        ```json
-        { "id": 1, "lat": 12.34, "lng": 56.78, "timestamp": 1690000000000 }
-        ```
-    -   Request payload (batch):
-        ```json
-        [
-            { "id": 1, "lat": 12.34, "lng": 56.78, "timestamp": 1690000000000 },
-            { "id": 2, "lat": 11.11, "lng": 22.22, "timestamp": 1690000001000 }
-        ]
-        ```
-    -   Response: `200 OK` with plain text body `OK`.
-    -   Behavior: The server only updates a bus's stored location if the incoming `timestamp` is newer than the stored one.
+### POST /auth/send-otp
 
--   **POST /auth/send-otp** : Request OTP email _(rate limited)_
+- Purpose: Generate OTP, store hash, and send email.
+- Rate limit: 5 requests / 300 seconds per IP.
+- Request body:
 
-    -   Description: Sends a verification OTP to supplied email and stores a hashed OTP in DB.
-    -   Rate Limiting: Maximum 5 requests per 60 seconds per IP address.
-    -   Request headers: `Content-Type: application/json`
-    -   Request payload:
-        ```json
-        { "email": "user@example.com" }
-        ```
-    -   Success response: `200 OK`
-        ```json
-        { "success": true }
-        ```
-    -   Error response (email send failure): `500`
-        ```json
-        { "success": false, "error": "Failed to send email" }
-        ```
-    -   Rate limit error: `429`
-        ```json
-        { "error": "Too many requests" }
-        ```
-    -   Notes: OTPs are stored hashed and expire logically after 10 minutes (cleanup via `Otp.deleteExpired`).
+```json
+{ "email": "user@example.com" }
+```
 
--   **POST /auth/register** : Register new user using OTP _(rate limited)_
+- Success: `200` `{ "success": true }`
+- Errors:
+    - `403` email not allowlisted
+    - `500` mail failure
+    - `429` rate limit exceeded
 
-    -   Description: Verifies OTP, creates user, sets a session cookie on success.
-    -   Rate Limiting: Maximum 5 requests per 60 seconds per IP address.
-    -   Request headers: `Content-Type: application/json`
-    -   Request payload:
-        ```json
-        { "username": "alice", "email": "alice@example.com", "password": "s3cr3t", "otp": "123456" }
-        ```
-    -   Success response: `200 OK` and sets cookie `sessionToken` (HTTP-only). Body:
-        ```json
-        { "success": true, "user": { "id": 42, "username": "alice", "email": "alice@example.com" } }
-        ```
-    -   Possible error responses:
-        -   `400` `{ "error": "Username must be 3-20 characters (letters, numbers, underscores)" }` (invalid username)
-        -   `400` `{ "error": "Invalid email format" }` (invalid email)
-        -   `400` `{ "error": "Password must be at least 8 characters" }` (weak password)
-        -   `400` `{ "error": "OTP must be 6 digits" }` (invalid OTP format)
-        -   `400` `{ "error": "Send OTP first" }` (no OTP record)
-        -   `401` `{ "error": "Invalid OTP" }` (OTP mismatch)
-        -   `400` `{ "error": "Email already exists" }` (duplicate email)
-        -   `403` `{ "error": "Email not authorized" }` (email not in allowed list)
-        -   `429` `{ "error": "Too many requests" }` (rate limit exceeded)
-        -   `500` `{ "error": "Registration failed" }` (DB/other failure)
+### POST /auth/register
 
--   **POST /auth/login** : Login existing user _(rate limited)_
+- Purpose: Verify OTP, create user, issue session cookie.
+- Rate limit: 20 requests / 300 seconds per IP.
+- Request body:
 
-    -   Description: Validates credentials and sets session cookie on success.
-    -   Rate Limiting: Maximum 5 requests per 60 seconds per IP address.
-    -   Request headers: `Content-Type: application/json`
-    -   Request payload:
-        ```json
-        { "email": "alice@example.com", "password": "s3cr3t" }
-        ```
-    -   Success response: `200 OK` (cookie `sessionToken` set)
-        ```json
-        { "success": true, "user": { "id": 42, "username": "alice", "email": "alice@example.com" } }
-        ```
-    -   Failure responses:
-        -   `400` `{ "error": "Invalid email format" }` (invalid email)
-        -   `400` `{ "error": "Password is required" }` (missing password)
-        -   `401` `{ "error": "Invalid credentials" }` (wrong email/password)
-        -   `429` `{ "error": "Too many requests" }` (rate limit exceeded)
+```json
+{ "username": "alice", "email": "alice@example.com", "password": "s3cr3t123", "otp": "123456" }
+```
 
--   **GET /auth/me** : Get authenticated user
+- Success: `200` with `{ success: true, user }` and `sessionToken` cookie.
+- Notable errors:
+    - `401` invalid OTP
+    - `401` OTP expired (`OTP expired. Please request a new one.`)
+    - `400` duplicate email
+    - `429` rate limit exceeded
 
-    -   Description: Returns the current user decoded from the `sessionToken` cookie.
-    -   Request: Cookie `sessionToken` must be present.
-    -   Success response: `200 OK`
-        ```json
-        { "authenticated": true, "user": { "id": 42, "email": "alice@example.com", "username": "alice" } }
-        ```
-    -   Failure response: `401` `{ "authenticated": false }` (no/invalid token)
+### POST /auth/login
 
--   **POST /auth/logout** : Logout
-    -   Description: Clears the `sessionToken` cookie.
-    -   Request: No payload required.
-    -   Response: `200 OK`
-        ```json
-        { "success": true }
-        ```
+- Purpose: Validate credentials and issue session cookie.
+- Rate limit: 10 requests / 300 seconds per IP.
+- Request body:
 
----
+```json
+{ "email": "alice@example.com", "password": "s3cr3t123" }
+```
 
-**Database Schemas (summary)**
+- Success: `200` with `{ success: true, user }` and `sessionToken` cookie.
+- Errors: `400`, `401`, `429`.
 
--   `users` table:
+### GET /auth/me
 
-    -   `id` (integer, pk, autoincrement)
-    -   `username` (text)
-    -   `email` (text, unique)
-    -   `password_hash` (text)
-    -   `created_at` (text)
+- Purpose: Validate current session and return current user payload.
+- Success: `200` `{ "authenticated": true, "user": { ... } }`
+- Failure: `401` `{ "authenticated": false }`
 
--   `otps` table:
-    -   `id` (integer, pk, autoincrement)
-    -   `email` (text)
-    -   `otp_hash` (text)
-    -   `created_at` (text)
+### POST /auth/logout
 
-**Authentication / Sessions**
+- Purpose: Clear auth cookie.
+- Success: `200` `{ "success": true }`
 
--   Cookie name: `sessionToken` (HTTP-only cookie)
--   Token: Signed JWT (HS256) containing `{ id, email, username }` and expiration set according to `SESSION_MAX_AGE` (env).
--   Protected endpoints: `/stream` and `/update` require valid session cookie.
+## Auth and Session Details
 
-**Rate Limiting**
+- Cookie name: `sessionToken`
+- Token type: JWT (HS256)
+- Claims: `id`, `email`, `username`
+- TTL: controlled by `SESSION_MAX_AGE` (seconds)
+- Cookie flags: `HttpOnly`, `SameSite=Strict`, `Secure` in production
 
--   Endpoints with rate limiting: `/auth/send-otp`, `/auth/register`, `/auth/login`
--   Limit: 5 requests per 60 seconds per IP address
--   Rate limit applied per IP (using `x-forwarded-for`, `cf-connecting-ip`, or direct IP)
--   Response when exceeded: `429 Too Many Requests` with `{ "error": "Too many requests" }`
+## OTP Expiration
 
-**Notes & Implementation details**
+- OTP hash is stored in DB with `created_at`.
+- Expiry window is controlled by `OTP_EXPIRATION_MINUTES`.
+- Expiry is enforced at verification time in register flow.
+- Cleanup job also deletes old OTP rows periodically.
 
--   `send-otp` stores a hashed OTP and sends a plain numeric code by email; OTP verification compares provided code against stored hash.
--   `update` accepts both single and batch updates; older timestamps are ignored.
--   SSE stream pushes `BusDetails[]` as the `data:` JSON payload. Clients should parse the JSON from each event data string.
--   Environment variables that affect behavior:
-    -   `SERVER_PORT` (default 3000)
-    -   `INTERVAL` (SSE broadcast interval, ms, default 5000)
-    -   `JOSE_SECRET_KEY` (JWT signing key)
-    -   `SESSION_MAX_AGE` (session cookie TTL in seconds, default 604800 = 7 days)
-    -   `CORS_ORIGIN` (allowed origin for CORS, default http://localhost:5173)
-    -   `NODE_ENV` (set to 'production' to enable secure cookies)
+## Rate Limiting Summary
 
-If you want, I can add example curl commands and sample client code for SSE consumption and session-authenticated requests.
+- `/auth/send-otp`: 5 requests / 300s
+- `/auth/register`: 20 requests / 300s
+- `/auth/login`: 10 requests / 300s
+
+## Key Environment Variables
+
+- `SERVER_PORT` (default `3000`)
+- `INTERVAL` (SSE interval in ms, default `5000`)
+- `CORS_ORIGIN` (comma-separated allowlist)
+- `JOSE_SECRET_KEY`
+- `SESSION_MAX_AGE`
+- `OTP_EXPIRATION_MINUTES`
+- `NODE_ENV`

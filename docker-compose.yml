@@ -10,7 +10,11 @@ services:
         env_file:
             - ./backend/.env
         volumes:
-         - ./backend/db:/db
+            - ./backend/db:/db
+        cpus: 0.75
+        mem_limit: 512m
+        mem_reservation: 256m
+        pids_limit: 256
 
     batcher:
         build:
@@ -26,7 +30,10 @@ services:
             - TARGET_URL=http://backend:3000/update
         depends_on:
             - backend
-       
+        cpus: 0.5
+        mem_limit: 384m
+        mem_reservation: 128m
+        pids_limit: 192
 
     frontend:
         build:
@@ -38,6 +45,10 @@ services:
             - '80:80'
         depends_on:
             - backend
+        cpus: 0.5
+        mem_limit: 256m
+        mem_reservation: 96m
+        pids_limit: 128
 
     simulation:
         build:
@@ -51,3 +62,7 @@ services:
         restart: on-failure
         depends_on:
             - batcher
+        cpus: 0.5
+        mem_limit: 256m
+        mem_reservation: 96m
+        pids_limit: 128

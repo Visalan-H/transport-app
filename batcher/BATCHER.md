@@ -15,7 +15,11 @@ This reduces the number of requests the main service must handle and allows send
 - `POST /update`
     - Accepts a plain text body in the `BusText` format: `"{id},{lat},{lng},{timestamp}"` (e.g. `"1,12.34,56.78,1690000000000"`).
     - Each request appends the `BusText` string to an in-memory buffer and returns a plain text `OK` response.
-    - No authentication.
+    - Authentication is required:
+        - GPS source via `x-api-key` header matching `GPS_API_KEY`
+        - Driver source via valid `sessionToken` JWT cookie
+    - Returns `401 Unauthorized` when neither auth method is valid.
+    - Returns `400 Bad Request` when payload has no bus ID.
 
 - `GET /health`
     - Returns a JSON object summarizing the service status:
@@ -38,6 +42,11 @@ Example `GET /health` response:
     3. POSTs the JSON array `BusDetails[]` to `TARGET_URL`.
     4. If the forwarding `fetch` fails, the batch is requeued at the front of the buffer for retry.
 
+### Source priority
+
+- Batcher tracks last source per bus (`gps` or `driver`).
+- If GPS recently updated a bus (within `GPS_PRIORITY_WINDOW`, currently 2 minutes), incoming driver updates for that bus are dropped.
+
 ## Payload formats
 
 - BusText (single update, plain text body):
@@ -55,6 +64,9 @@ Example `GET /health` response:
 - `INTERVAL` — batching interval in milliseconds (default `5000`).
 - `TARGET_URL` — where batches are forwarded (default `http://localhost:3000/update`).
 - `BATCHER_PORT` — port the batcher listens on for incoming `POST /update` (default `4000`).
+- `GPS_API_KEY` — required API key for GPS update sources.
+- `JOSE_SECRET_KEY` — required to validate driver JWT cookies.
+- `LOG_LEVEL` — `info` (default) or `debug`.
 
 Set these in the environment or in a process manager before starting the batcher.
 
@@ -103,6 +115,7 @@ curl http://localhost:4000/health
 - The buffer is in-memory only — consider durable queuing if losing data on restart is unacceptable.
 - The batcher requeues failed batches by unshifting them back into the buffer; this may cause repeated immediate retries if the target is down. Consider exponential backoff for production.
 - Monitor the `buffer` size (via `/health`) to detect blocked forwarding to `TARGET_URL`.
-- Logging: the service logs received request count and each `[BATCH] sent N` event.
+- Logging is structured: timestamp + service + level + event + JSON metadata.
+- High-volume request logs are sampled/reduced by default; use `LOG_LEVEL=debug` when troubleshooting.
 
 ---

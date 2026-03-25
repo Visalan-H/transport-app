@@ -1,8 +1,9 @@
 import type { BusDetails, BusText } from '../types';
 
 const INTERVAL = 5000;
-const TARGET_URL = Bun.env.TARGET_URL || 'http://localhost:4000/update';
-const GPS_API_KEY = Bun.env.GPS_API_KEY;
+const env = (globalThis as { Bun?: { env?: Record<string, string | undefined> } }).Bun?.env || {};
+const TARGET_URL = env.TARGET_URL || 'http://localhost:4000/update';
+const GPS_API_KEY = env.GPS_API_KEY;
 
 if (!GPS_API_KEY) throw new Error('GPS_API_KEY is not set');
 

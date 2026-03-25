@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import type { BusDetails } from '../../../types';
 import calculateDistance from '@/utils/calculateDistance';
 
+const NEARBY_BUS_LIMIT = 10;
+
 export function useNearbyBus(busLocations: BusDetails[]) {
     const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
     const [isLoadingLocation, setIsLoadingLocation] = useState(() => !!navigator.geolocation);
@@ -42,12 +44,27 @@ export function useNearbyBus(busLocations: BusDetails[]) {
     const nearbyBuses = useMemo(() => {
         if (!location) return [];
 
-        return busLocations
-            .map((bus) => ({
+        const topNearby: (BusDetails & { distance: number })[] = [];
+
+        for (const bus of busLocations) {
+            const next = {
                 ...bus,
                 distance: calculateDistance(location.lat, location.lng, bus.lat, bus.lng),
-            }))
-            .sort((a, b) => a.distance - b.distance);
+            };
+
+            if (topNearby.length < NEARBY_BUS_LIMIT) {
+                topNearby.push(next);
+                topNearby.sort((a, b) => a.distance - b.distance);
+                continue;
+            }
+
+            if (next.distance >= topNearby[topNearby.length - 1].distance) continue;
+
+            topNearby[topNearby.length - 1] = next;
+            topNearby.sort((a, b) => a.distance - b.distance);
+        }
+
+        return topNearby;
     }, [busLocations, location]);
 
     return {

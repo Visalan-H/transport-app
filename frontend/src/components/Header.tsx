@@ -9,7 +9,6 @@ export function Header() {
     const { theme, toggleTheme } = useTheme();
     const { user, logout } = useAuth();
     const { canInstall, install } = useInstallPrompt();
-    console.log('Install prompt available:', canInstall);
     const navigate = useNavigate();
     const location = useLocation();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

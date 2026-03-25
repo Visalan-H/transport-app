@@ -1,16 +1,41 @@
-const CORS_ORIGIN = Bun.env.CORS_ORIGIN || 'http://localhost:5173';
+const ALLOWED_ORIGINS = (Bun.env.CORS_ORIGIN || 'http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
 
-export const corsHeaders = {
-    'Access-Control-Allow-Origin': CORS_ORIGIN,
+const baseCorsHeaders = {
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
     Vary: 'Origin',
 };
 
+const resolveAllowedOrigin = (req: Request): string | null => {
+    const requestOrigin = req.headers.get('origin');
+
+    if (ALLOWED_ORIGINS.includes('*')) {
+        return requestOrigin || '*';
+    }
+
+    if (!requestOrigin) {
+        return ALLOWED_ORIGINS[0] || null;
+    }
+
+    return ALLOWED_ORIGINS.includes(requestOrigin) ? requestOrigin : null;
+};
+
+const applyCorsHeaders = (req: Request, headers: Headers) => {
+    const allowedOrigin = resolveAllowedOrigin(req);
+    if (allowedOrigin) {
+        headers.set('Access-Control-Allow-Origin', allowedOrigin);
+    }
+
+    Object.entries(baseCorsHeaders).forEach(([key, value]) => headers.set(key, value));
+};
+
 export const withCors = (handler: any) => async (req: Request) => {
     const res = await handler(req);
-    Object.entries(corsHeaders).forEach(([k, v]) => res.headers.set(k, v));
+    applyCorsHeaders(req, res.headers);
     return res;
 };
 
@@ -25,4 +50,16 @@ export const wrapRoutes = (routes: Record<string, any>) => {
     return wrapped;
 };
 
-export const handlePreflight = () => new Response(null, { status: 204, headers: corsHeaders });
+export const handlePreflight = (req: Request) => {
+    const allowedOrigin = resolveAllowedOrigin(req);
+    const requestOrigin = req.headers.get('origin');
+
+    if (requestOrigin && !allowedOrigin) {
+        return Response.json({ error: 'Origin not allowed' }, { status: 403, headers: { Vary: 'Origin' } });
+    }
+
+    const headers = new Headers();
+    applyCorsHeaders(req, headers);
+
+    return new Response(null, { status: 204, headers });
+};

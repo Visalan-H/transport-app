@@ -13,7 +13,7 @@ Bun.serve({
         ...wrapRoutes(locationRoutes),
     },
     fetch(req) {
-        if (req.method === 'OPTIONS') return handlePreflight();
+        if (req.method === 'OPTIONS') return handlePreflight(req);
         return new Response('Not Found', { status: 404 });
     },
 });

@@ -1,5 +1,5 @@
 import { User } from '../services/userService';
-import { Otp } from '../services/otpService';
+import { Otp, isOtpExpired } from '../services/otpService';
 import { sendOtpEmail } from '../utils/sendOtp';
 import { generateAndSetCookie, clearCookie, decodeCookie } from '../services/cookieService';
 import { isEmailAllowed } from '../config/validEmails';
@@ -11,7 +11,7 @@ export const handleSendOtp = async (req: BunRequest) => {
     const { email } = (await req.json()) as { email: string };
 
     if (!email || !isValidEmail(email)) {
-        return Response.json({ success: false, error: 'Invalid email format' });
+        return Response.json({ success: false, error: 'Invalid email format' }, { status: 400 });
     }
 
     if (!isEmailAllowed(email)) {
@@ -61,6 +61,11 @@ export const handleRegister = async (req: BunRequest) => {
 
     const otpRecord = await Otp.findByEmail(email);
     if (!otpRecord) return Response.json({ error: 'Send OTP first' }, { status: 400 });
+
+    if (isOtpExpired(otpRecord.createdAt)) {
+        await Otp.delete(email);
+        return Response.json({ error: 'OTP expired. Please request a new one.' }, { status: 401 });
+    }
 
     const otpMatched = await Bun.password.verify(otp, otpRecord.otpHash);
     if (!otpMatched) return Response.json({ error: 'Invalid OTP' }, { status: 401 });
