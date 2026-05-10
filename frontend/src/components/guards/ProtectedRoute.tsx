@@ -2,7 +2,11 @@ import { useAuth } from '@/context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { LoadingSpinner } from '../LoadingSpinner';
 
-export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
+type RouteGuardProps = {
+    children: React.ReactNode;
+};
+
+export default function ProtectedRoute({ children }: RouteGuardProps) {
     const { user, loading } = useAuth();
 
     if (loading) {

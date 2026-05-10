@@ -50,19 +50,19 @@ services:
         mem_reservation: 96m
         pids_limit: 128
 
-    simulation:
-        build:
-            context: .
-            dockerfile: simulation/Dockerfile
-        container_name: transport_simulation
-        env_file:
-            - ./simulation/.env
-        environment:
-            - TARGET_URL=http://batcher:4000/update
-        restart: on-failure
-        depends_on:
-            - batcher
-        cpus: 0.5
-        mem_limit: 256m
-        mem_reservation: 96m
-        pids_limit: 128
+    # simulation:
+    #     build:
+    #         context: .
+    #         dockerfile: simulation/Dockerfile
+    #     container_name: transport_simulation
+    #     env_file:
+    #         - ./simulation/.env
+    #     environment:
+    #         - TARGET_URL=http://batcher:4000/update
+    #     restart: on-failure
+    #     depends_on:
+    #         - batcher
+    #     cpus: 0.5
+    #     mem_limit: 256m
+    #     mem_reservation: 96m
+    #     pids_limit: 128

@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Sun, Moon, Menu, X, LogIn, UserPlus, LogOut, Download, Bus } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
+import { useClickOutside } from '../hooks/useClickOutside';
 
 export function Header() {
     const { theme, toggleTheme } = useTheme();
@@ -14,27 +15,30 @@ export function Header() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
-    // Close menu when clicking outside
-    useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-                setMobileMenuOpen(false);
-            }
-        }
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+    const closeMobileMenu = useCallback(() => {
+        setMobileMenuOpen(false);
     }, []);
+
+    useClickOutside({ ref: menuRef, isEnabled: mobileMenuOpen, onOutsideClick: closeMobileMenu });
 
     const handleLogout = async () => {
         await logout();
-        setMobileMenuOpen(false);
+        closeMobileMenu();
         navigate('/');
     };
 
     const handleNavigate = (path: string) => {
-        setMobileMenuOpen(false);
+        closeMobileMenu();
         navigate(path);
     };
+
+    const isDriverRoute = location.pathname === '/driver';
+    const isLoginRoute = location.pathname === '/login';
+    const isSignupRoute = location.pathname === '/signup';
+    const themeIcon = theme === 'bright' ? <Moon size={20} /> : <Sun size={20} />;
+    const mobileThemeIcon = theme === 'bright' ? <Moon size={18} /> : <Sun size={18} />;
+    const mobileThemeLabel = theme === 'bright' ? 'Dark Mode' : 'Light Mode';
+    const mobileMenuIcon = mobileMenuOpen ? <X size={22} /> : <Menu size={22} />;
 
     return (
         <header className="flex items-center justify-between px-4 pt-3 pb-1 bg-background shrink-0">
@@ -50,7 +54,7 @@ export function Header() {
                 <button
                     onClick={() => navigate('/driver')}
                     className={`flex items-center gap-2 px-3 py-1.5 text-sm transition-colors rounded-md cursor-pointer ${
-                        location.pathname === '/driver'
+                        isDriverRoute
                             ? 'text-foreground bg-primary/10 hover:bg-primary/20'
                             : 'text-foreground hover:text-primary'
                     }`}
@@ -80,7 +84,7 @@ export function Header() {
                         <button
                             onClick={() => navigate('/login')}
                             className={`flex items-center gap-2 px-3 py-1.5 text-sm transition-colors rounded-md cursor-pointer ${
-                                location.pathname === '/login'
+                                isLoginRoute
                                     ? 'text-foreground bg-primary/10 hover:bg-primary/20'
                                     : 'text-foreground hover:text-primary'
                             }`}
@@ -91,7 +95,7 @@ export function Header() {
                         <button
                             onClick={() => navigate('/signup')}
                             className={`flex items-center gap-2 px-3 py-1.5 text-sm transition-colors rounded-md cursor-pointer ${
-                                location.pathname === '/signup'
+                                isSignupRoute
                                     ? 'text-foreground bg-primary/10 hover:bg-primary/20'
                                     : 'text-foreground hover:text-primary'
                             }`}
@@ -106,7 +110,7 @@ export function Header() {
                     className="p-2 text-foreground hover:text-primary transition-colors rounded-md cursor-pointer"
                     aria-label="Toggle theme"
                 >
-                    {theme === 'bright' ? <Moon size={20} /> : <Sun size={20} />}
+                    {themeIcon}
                 </button>
             </nav>
 
@@ -117,7 +121,7 @@ export function Header() {
                     className="p-2 text-foreground hover:text-primary transition-colors rounded-md cursor-pointer"
                     aria-label="Open menu"
                 >
-                    {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+                    {mobileMenuIcon}
                 </button>
 
                 {/* Mobile Dropdown Menu */}
@@ -127,7 +131,7 @@ export function Header() {
                             <button
                                 onClick={async () => {
                                     await install();
-                                    setMobileMenuOpen(false);
+                                    closeMobileMenu();
                                 }}
                                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
                             >
@@ -140,14 +144,14 @@ export function Header() {
                             onClick={toggleTheme}
                             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
                         >
-                            {theme === 'bright' ? <Moon size={18} /> : <Sun size={18} />}
-                            <span>{theme === 'bright' ? 'Dark Mode' : 'Light Mode'}</span>
+                            {mobileThemeIcon}
+                            <span>{mobileThemeLabel}</span>
                         </button>
 
                         <button
                             onClick={() => handleNavigate('/driver')}
                             className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground transition-colors ${
-                                location.pathname === '/driver' ? 'bg-muted' : 'hover:bg-muted'
+                                isDriverRoute ? 'bg-muted' : 'hover:bg-muted'
                             }`}
                         >
                             <Bus size={18} />
@@ -169,7 +173,7 @@ export function Header() {
                                 <button
                                     onClick={() => handleNavigate('/login')}
                                     className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground transition-colors ${
-                                        location.pathname === '/login' ? 'bg-muted' : 'hover:bg-muted'
+                                        isLoginRoute ? 'bg-muted' : 'hover:bg-muted'
                                     }`}
                                 >
                                     <LogIn size={18} />
@@ -178,7 +182,7 @@ export function Header() {
                                 <button
                                     onClick={() => handleNavigate('/signup')}
                                     className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground transition-colors ${
-                                        location.pathname === '/signup' ? 'bg-muted' : 'hover:bg-muted'
+                                        isSignupRoute ? 'bg-muted' : 'hover:bg-muted'
                                     }`}
                                 >
                                     <UserPlus size={18} />

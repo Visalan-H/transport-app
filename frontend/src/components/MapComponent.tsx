@@ -17,23 +17,35 @@ type MapComponentProps = {
     mapRef: React.RefObject<MapRef | null>;
 };
 
-export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapComponentProps) => {
-    const { theme } = useTheme();
+type ValidBus = {
+    id: number;
+    lat: number;
+    lng: number;
+    timestamp: number;
+};
 
+type UseMapLoadStateArgs = {
+    mapRef: React.RefObject<MapRef | null>;
+};
+
+type UseAutoCenterFirstBusArgs = {
+    mapRef: React.RefObject<MapRef | null>;
+    validBuses: ValidBus[];
+    hasUserMovedRef: React.MutableRefObject<boolean>;
+};
+
+function useMapLoadState({ mapRef }: UseMapLoadStateArgs) {
     const [isMapLoading, setIsMapLoading] = useState(true);
-    const [selectedBus, setSelectedBus] = useState<BusDetails | null>(null);
-    const [imageLoaded, setImageLoaded] = useState(false);
-    const hasUserMovedRef = useRef(false);
-    const hasCenteredOnBusRef = useRef(false);
+    const [isImageLoaded, setIsImageLoaded] = useState(false);
     const loadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const mapStyle =
-        theme === 'dark'
-            ? 'https://tiles.openfreemap.org/styles/dark'
-            : 'https://tiles.openfreemap.org/styles/positron';
+    const ensureBusImage = useCallback(async () => {
+        const map = mapRef.current?.getMap();
+        if (!map) return;
 
-    const validBuses = useMemo(() => busLocations.filter((b) => b?.lat != null && b?.lng != null), [busLocations]);
-    const busesById = useMemo(() => new globalThis.Map(validBuses.map((bus) => [bus.id, bus])), [validBuses]);
+        await registerBusImage(map);
+        setIsImageLoaded(true);
+    }, [mapRef]);
 
     const handleMapLoad = useCallback(async () => {
         if (loadTimeoutRef.current) {
@@ -42,23 +54,10 @@ export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapCom
         }
 
         setIsMapLoading(false);
-        const map = mapRef.current?.getMap();
-        if (!map) return;
-
-        await registerBusImage(map);
-        setImageLoaded(true);
-    }, [mapRef]);
-
-    const ensureBusImage = useCallback(async () => {
-        const map = mapRef.current?.getMap();
-        if (!map) return;
-
-        await registerBusImage(map);
-        setImageLoaded(true);
-    }, [mapRef]);
+        await ensureBusImage();
+    }, [ensureBusImage]);
 
     useEffect(() => {
-        // Avoid blocking UI forever if tile/style server is slow.
         loadTimeoutRef.current = setTimeout(() => setIsMapLoading(false), 1800);
 
         return () => {
@@ -70,12 +69,12 @@ export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapCom
     }, []);
 
     useEffect(() => {
-        let cancelled = false;
+        let isCancelled = false;
 
         const bootstrap = async () => {
             const map = mapRef.current?.getMap();
             if (!map) {
-                if (!cancelled) requestAnimationFrame(bootstrap);
+                if (!isCancelled) requestAnimationFrame(bootstrap);
                 return;
             }
 
@@ -85,9 +84,15 @@ export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapCom
         bootstrap();
 
         return () => {
-            cancelled = true;
+            isCancelled = true;
         };
-    }, [ensureBusImage]);
+    }, [ensureBusImage, mapRef]);
+
+    return { ensureBusImage, handleMapLoad, isImageLoaded, isMapLoading };
+}
+
+function useAutoCenterFirstBus({ mapRef, validBuses, hasUserMovedRef }: UseAutoCenterFirstBusArgs) {
+    const hasCenteredOnBusRef = useRef(false);
 
     useEffect(() => {
         if (hasUserMovedRef.current || hasCenteredOnBusRef.current || !validBuses.length) return;
@@ -98,7 +103,25 @@ export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapCom
         const firstBus = validBuses[0];
         map.easeTo({ center: [firstBus.lng, firstBus.lat], duration: 700 });
         hasCenteredOnBusRef.current = true;
-    }, [validBuses, mapRef]);
+    }, [hasUserMovedRef, mapRef, validBuses]);
+}
+
+export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapComponentProps) => {
+    const { theme } = useTheme();
+
+    const [selectedBus, setSelectedBus] = useState<BusDetails | null>(null);
+    const hasUserMovedRef = useRef(false);
+
+    const mapStyle =
+        theme === 'dark'
+            ? 'https://tiles.openfreemap.org/styles/dark'
+            : 'https://tiles.openfreemap.org/styles/positron';
+
+    const validBuses = useMemo(() => busLocations.filter((b) => b?.lat != null && b?.lng != null), [busLocations]);
+    const busesById = useMemo(() => new globalThis.Map(validBuses.map((bus) => [bus.id, bus])), [validBuses]);
+    const { ensureBusImage, handleMapLoad, isImageLoaded, isMapLoading } = useMapLoadState({ mapRef });
+
+    useAutoCenterFirstBus({ mapRef, validBuses, hasUserMovedRef });
 
     const handleMapClick = useCallback(
         (e: MapLayerMouseEvent) => {
@@ -155,7 +178,7 @@ export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapCom
                 attributionControl={false}
                 mapStyle={mapStyle}
             >
-                {imageLoaded && <BusLayer buses={validBuses} theme={theme} />}
+                {isImageLoaded && <BusLayer buses={validBuses} theme={theme} />}
                 {selectedBus && <BusPopup bus={selectedBus} onClose={() => setSelectedBus(null)} />}
                 {userLocation && <UserLocationMarker location={userLocation} />}
 
