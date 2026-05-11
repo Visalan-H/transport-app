@@ -1,23 +1,44 @@
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import axios from 'axios';
 
-export const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:3000' : ''),
+const BASE = import.meta.env.VITE_API_URL ?? '';
+
+const axiosApi = axios.create({
+    baseURL: BASE,
     withCredentials: true,
-    headers: {
-        'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
 });
 
-// Response interceptor for global error handling
-api.interceptors.response.use(
-    (response) => response,
-    (error) => {
-        if (error.response?.status === 401) {
-            // Handle unauthorized errors globally if needed
-            console.error('Unauthorized access');
-        }
-        return Promise.reject(error);
-    },
-);
+interface ApiResponse<T = unknown> {
+    status: number;
+    data: T;
+}
+
+const nativeRequest = async <T = unknown>(
+    method: 'GET' | 'POST',
+    url: string,
+    data?: unknown,
+): Promise<ApiResponse<T>> => {
+    const res = await CapacitorHttp.request({
+        method,
+        url: `${BASE}${url}`,
+        headers: { 'Content-Type': 'application/json' },
+        data,
+    });
+    if (res.status >= 400) throw { status: res.status, data: res.data };
+    return { status: res.status, data: res.data as T };
+};
+
+export const api = {
+    get: <T = unknown>(url: string): Promise<ApiResponse<T>> =>
+        Capacitor.isNativePlatform()
+            ? nativeRequest<T>('GET', url)
+            : axiosApi.get<T>(url).then((r) => ({ status: r.status, data: r.data })),
+
+    post: <T = unknown>(url: string, data?: unknown): Promise<ApiResponse<T>> =>
+        Capacitor.isNativePlatform()
+            ? nativeRequest<T>('POST', url, data)
+            : axiosApi.post<T>(url, data).then((r) => ({ status: r.status, data: r.data })),
+};
 
 export default api;

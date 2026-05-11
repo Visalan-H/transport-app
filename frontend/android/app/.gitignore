@@ -1,0 +1,36 @@
+# Gradle
+.gradle/
+build/
+*/build/
+
+# Local Android SDK path
+local.properties
+
+# Android Studio
+.idea/
+*.iml
+captures/
+
+# Generated APK/AAB files
+*.apk
+*.aab
+
+# Native build outputs
+.externalNativeBuild/
+.cxx/
+
+# Logs
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Capacitor generated web assets
+app/src/main/assets/public/
+
+# Kotlin/Java compiled files
+*.class
+
+# Keep empty build dir if needed
+!/build/.npmkeep

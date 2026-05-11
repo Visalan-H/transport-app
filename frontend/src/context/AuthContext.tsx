@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { isAxiosError } from 'axios';
 import api from '../utils/axiosInstance';
 
 interface User {
@@ -22,7 +21,23 @@ interface AuthContextValue {
     logout: () => Promise<{ ok: boolean; message?: string }>;
 }
 
+interface AuthResponse {
+    success?: boolean;
+    authenticated?: boolean;
+    user?: User;
+    error?: string;
+    message?: string;
+}
+
+interface ApiError {
+    status?: number;
+    data?: AuthResponse;
+    message?: string;
+}
+
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+const getErrMessage = (err: ApiError, fallback: string): string => err?.data?.error ?? err?.message ?? fallback;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(() => {
@@ -30,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const storedUser = localStorage.getItem('user');
             if (storedUser) {
                 try {
-                    return JSON.parse(storedUser);
+                    return JSON.parse(storedUser) as User;
                 } catch {
                     localStorage.removeItem('user');
                 }
@@ -41,12 +56,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        api.get('/auth/me')
+        api.get<AuthResponse>('/auth/me')
             .then((res) => {
-                const data = res.data;
-                if (data?.authenticated && data.user) {
-                    setUser(data.user);
-                    localStorage.setItem('user', JSON.stringify(data.user));
+                if (res.data?.authenticated && res.data.user) {
+                    setUser(res.data.user);
+                    localStorage.setItem('user', JSON.stringify(res.data.user));
                 } else {
                     setUser(null);
                     localStorage.removeItem('user');
@@ -61,32 +75,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const sendOtp = async (email: string): Promise<{ ok: boolean; message?: string }> => {
         try {
-            const res = await api.post('/auth/send-otp', { email });
+            const res = await api.post<AuthResponse>('/auth/send-otp', { email });
             return { ok: res.status >= 200 && res.status < 300, message: res.data?.message };
         } catch (err) {
-            console.log(err);
-            if (isAxiosError(err)) {
-                return { ok: false, message: err.response?.data?.error || err.message };
-            }
-            return { ok: false, message: 'Network error' };
+            return { ok: false, message: getErrMessage(err as ApiError, 'Network error') };
         }
     };
 
     const login = async (email: string, password: string): Promise<{ ok: boolean; message?: string }> => {
         try {
-            const res = await api.post('/auth/login', { email, password });
-            const data = res.data || {};
-            if (res.status >= 200 && res.status < 300 && data.success) {
-                setUser(data.user);
-                localStorage.setItem('user', JSON.stringify(data.user));
+            const res = await api.post<AuthResponse>('/auth/login', { email, password });
+            if (res.status >= 200 && res.status < 300 && res.data?.success) {
+                setUser(res.data.user!);
+                localStorage.setItem('user', JSON.stringify(res.data.user));
                 return { ok: true };
             }
-            return { ok: false, message: data.error || 'Login failed' };
+            return { ok: false, message: res.data?.error || 'Login failed' };
         } catch (err) {
-            if (isAxiosError(err)) {
-                return { ok: false, message: err.response?.data?.error || 'Login failed' };
-            }
-            return { ok: false, message: 'Network error' };
+            return { ok: false, message: getErrMessage(err as ApiError, 'Login failed') };
         }
     };
 
@@ -97,19 +103,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         otp: string,
     ): Promise<{ ok: boolean; message?: string }> => {
         try {
-            const res = await api.post('/auth/register', { username, email, password, otp });
-            const data = res.data || {};
-            if (res.status >= 200 && res.status < 300 && data.success) {
-                setUser(data.user);
-                localStorage.setItem('user', JSON.stringify(data.user));
+            const res = await api.post<AuthResponse>('/auth/register', { username, email, password, otp });
+            if (res.status >= 200 && res.status < 300 && res.data?.success) {
+                setUser(res.data.user!);
+                localStorage.setItem('user', JSON.stringify(res.data.user));
                 return { ok: true };
             }
-            return { ok: false, message: data.error || 'Registration failed' };
+            return { ok: false, message: res.data?.error || 'Registration failed' };
         } catch (err) {
-            if (isAxiosError(err)) {
-                return { ok: false, message: err.response?.data?.error || 'Registration failed' };
-            }
-            return { ok: false, message: 'Network error' };
+            return { ok: false, message: getErrMessage(err as ApiError, 'Registration failed') };
         }
     };
 
@@ -122,10 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (err) {
             setUser(null);
             localStorage.removeItem('user');
-            if (isAxiosError(err)) {
-                return { ok: false, message: err.response?.data?.error || 'Network error' };
-            }
-            return { ok: false, message: 'Network error' };
+            return { ok: false, message: getErrMessage(err as ApiError, 'Network error') };
         }
     };
 
@@ -138,8 +137,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
     const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error('useAuth must be used within AuthProvider');
-    }
+    if (!context) throw new Error('useAuth must be used within AuthProvider');
     return context;
 }

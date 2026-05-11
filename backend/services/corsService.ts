@@ -1,4 +1,4 @@
-const ALLOWED_ORIGINS = (Bun.env.CORS_ORIGIN || 'http://localhost:5173')
+const ALLOWED_ORIGINS = 'http://localhost:5173,https://6pwng25f-80.inc1.devtunnels.ms,http://localhost,capacitor://localhost,https://localhost'
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);

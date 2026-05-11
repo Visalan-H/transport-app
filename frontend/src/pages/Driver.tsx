@@ -1,15 +1,55 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SEC_Bus_Routes } from '@/constants/BusIdMap';
+import { registerPlugin } from '@capacitor/core';
+import { CapacitorHttp } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
+import { NativeSettings, AndroidSettings, IOSSettings } from 'capacitor-native-settings';
+
+// ─── Plugin ───────────────────────────────────────────────────────────────────
+// @capacitor-community/background-geolocation
+// capacitor.config: android: { useLegacyBridge: true }
+
+interface BGLocation {
+    latitude: number;
+    longitude: number;
+    accuracy: number;
+    altitude: number | null;
+    altitudeAccuracy: number | null;
+    simulated: boolean;
+    speed: number | null;
+    bearing: number | null;
+    time: number | null;
+}
+
+interface BGError {
+    code: string;
+    message: string;
+}
+
+interface BackgroundGeolocationPlugin {
+    addWatcher(
+        options: {
+            backgroundMessage?: string;
+            backgroundTitle?: string;
+            requestPermissions?: boolean;
+            stale?: boolean;
+            distanceFilter?: number;
+        },
+        callback: (location: BGLocation | undefined, error: BGError | undefined) => void,
+    ): Promise<string>;
+    removeWatcher(options: { id: string }): Promise<void>;
+    openSettings(): Promise<void>;
+}
+
+const BackgroundGeolocation = registerPlugin<BackgroundGeolocationPlugin>('BackgroundGeolocation');
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type TrackingState = 'idle' | 'requesting' | 'tracking' | 'error';
+// Distinguish WHY we're in error so we show the right recovery UI
+type ErrorKind = 'permission' | 'location_off' | 'generic' | null;
 type Coordinates = { lat: number; lng: number; accuracy: number };
 type Lang = 'en' | 'ta';
-
-type NavigatorWithWakeLock = Navigator & {
-    wakeLock?: { request: (type: 'screen') => Promise<WakeLockSentinel> };
-};
 
 // ─── Translations ─────────────────────────────────────────────────────────────
 
@@ -28,16 +68,19 @@ const translations = {
         btnStart: 'Start broadcasting',
         btnStop: 'Stop broadcasting',
         btnPending: 'Getting location...',
+        btnRetry: 'Try again',
         errorNoBus: 'Select your bus first',
-        errorNoGeo: 'Geolocation is not supported on this device',
-        errCodes: {
-            1: 'Location permission denied. Enable it in your browser settings.',
-            2: 'Location unavailable. Check your GPS signal.',
-            3: 'Location request timed out. Try again.',
-        },
         updatesSent: 'Updates sent',
         lastSent: 'Last sent',
-        keepScreen: "Keep your screen on — your browser doesn't support automatic screen lock prevention.",
+        permissionTitle: 'Location permission needed',
+        permissionBody:
+            'Polaris needs location permission to broadcast to students. Tap below to enable it in Settings.',
+        permissionBtn: 'Open App Settings',
+        locationOffTitle: 'Location is turned off',
+        locationOffBody: 'Your device location is disabled. Turn it on so Polaris can broadcast your position.',
+        locationOffBtn: 'Open Location Settings',
+        genericErrorTitle: 'Location error',
+        genericErrorBody: 'Something went wrong getting your location.',
     },
     ta: {
         title: 'ஓட்டுநர் பயன்முறை',
@@ -53,16 +96,19 @@ const translations = {
         btnStart: 'தொடங்கு',
         btnStop: 'நிறுத்து',
         btnPending: 'இருப்பிடம் கண்டறிகிறது...',
+        btnRetry: 'மீண்டும் முயற்சி',
         errorNoBus: 'பேருந்தை தேர்வு செய்யவும்',
-        errorNoGeo: 'இந்த சாதனத்தில் இருப்பிட சேவை இல்லை',
-        errCodes: {
-            1: 'இருப்பிட அனுமதி மறுக்கப்பட்டது. உலாவி அமைப்பில் இயக்கவும்.',
-            2: 'இருப்பிடம் கிடைக்கவில்லை. GPS சரிபார்க்கவும்.',
-            3: 'நேரம் முடிந்தது. மீண்டும் முயற்சிக்கவும்.',
-        },
         updatesSent: 'அனுப்பிய புதுப்பிப்புகள்',
         lastSent: 'கடைசியாக அனுப்பியது',
-        keepScreen: 'திரையை அணைக்காதீர்கள். இந்த உலாவி wake lock ஆதரிக்காது.',
+        permissionTitle: 'இருப்பிட அனுமதி தேவை',
+        permissionBody:
+            'மாணவர்களுக்கு ஒளிபரப்ப Polaris உங்கள் இருப்பிட அனுமதி தேவை. கீழே தட்டி அமைப்புகளில் இயக்கவும்.',
+        permissionBtn: 'ஆப் அமைப்புகளை திறக்கவும்',
+        locationOffTitle: 'இருப்பிடம் அணைக்கப்பட்டுள்ளது',
+        locationOffBody: 'உங்கள் சாதன இருப்பிடம் முடக்கப்பட்டுள்ளது. Polaris ஒளிபரப்ப இயக்கவும்.',
+        locationOffBtn: 'இருப்பிட அமைப்புகளை திறக்கவும்',
+        genericErrorTitle: 'இருப்பிட பிழை',
+        genericErrorBody: 'இருப்பிடம் கண்டறிவதில் பிரச்சனை ஏற்பட்டது.',
     },
 } as const;
 
@@ -75,11 +121,9 @@ const STORAGE_KEY = 'polaris_tracking_session';
 function saveSession(busId: string) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ busId }));
 }
-
 function clearSession() {
     localStorage.removeItem(STORAGE_KEY);
 }
-
 function loadSession(): { busId: string } | null {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -88,27 +132,22 @@ function loadSession(): { busId: string } | null {
         return null;
     }
 }
-// ─── SW messaging ─────────────────────────────────────────────────────────────
 
-async function postToSW(message: Record<string, unknown>) {
-    if (!('serviceWorker' in navigator)) return;
-    try {
-        const reg = await navigator.serviceWorker.ready;
-        const target = navigator.serviceWorker.controller ?? reg.active;
-        target?.postMessage(message);
-    } catch {}
+// ─── Error classification ─────────────────────────────────────────────────────
+
+function classifyError(code: string, message: string): ErrorKind {
+    if (code === 'NOT_AUTHORIZED' || /denied|permission/i.test(message)) return 'permission';
+    if (
+        code === 'LOCATION_SERVICES_DISABLED' ||
+        /disabled|turned off|unavailable|not enabled|location services/i.test(message)
+    )
+        return 'location_off';
+    return 'generic';
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Sub-component types ──────────────────────────────────────────────────────
 
-type StatusBadgeProps = {
-    isTracking: boolean;
-    isPending: boolean;
-    state: TrackingState;
-    isTamil: boolean;
-    t: Translation;
-};
-
+type StatusBadgeProps = { isTracking: boolean; isPending: boolean; state: TrackingState; t: Translation };
 type BusSelectorProps = {
     busId: string;
     isDisabled: boolean;
@@ -116,7 +155,6 @@ type BusSelectorProps = {
     t: Translation;
     onChange: (id: string) => void;
 };
-
 type TrackingButtonProps = {
     isTracking: boolean;
     isPending: boolean;
@@ -124,15 +162,96 @@ type TrackingButtonProps = {
     t: Translation;
     onClick: () => void;
 };
+type LiveStatsProps = { updateCount: number; lastUpdated: Date | null; isTamil: boolean; t: Translation };
+type ErrorPromptProps = { kind: ErrorKind; t: Translation; isTamil: boolean; onRetry: () => void };
 
-type LiveStatsProps = {
-    updateCount: number;
-    lastUpdated: Date | null;
-    isTamil: boolean;
-    t: Translation;
-};
+// ─── Error Prompt ─────────────────────────────────────────────────────────────
 
-function StatusBadge({ isTracking, isPending, state, isTamil, t }: StatusBadgeProps) {
+function ErrorPrompt({ kind, t, isTamil, onRetry }: ErrorPromptProps) {
+    const openAppSettings = () =>
+        NativeSettings.open({ optionAndroid: AndroidSettings.ApplicationDetails, optionIOS: IOSSettings.App });
+
+    // Opens the device-level location toggle, not app settings
+    const openLocationSettings = () =>
+        NativeSettings.open({ optionAndroid: AndroidSettings.Location, optionIOS: IOSSettings.LocationServices });
+
+    const isPermission = kind === 'permission';
+    const isLocationOff = kind === 'location_off';
+
+    const title = isPermission ? t.permissionTitle : isLocationOff ? t.locationOffTitle : t.genericErrorTitle;
+    const body = isPermission ? t.permissionBody : isLocationOff ? t.locationOffBody : t.genericErrorBody;
+    const settingsLabel = isPermission ? t.permissionBtn : isLocationOff ? t.locationOffBtn : null;
+    const onSettingsPress = isPermission ? openAppSettings : isLocationOff ? openLocationSettings : null;
+
+    return (
+        <div className="flex flex-col items-center gap-5 py-6 text-center">
+            <div
+                className={`w-16 h-16 rounded-full flex items-center justify-center ${
+                    isLocationOff ? 'bg-blue-100 dark:bg-blue-950/40' : 'bg-amber-100 dark:bg-amber-950/40'
+                }`}
+            >
+                {isLocationOff ? (
+                    <svg
+                        className="w-8 h-8 text-blue-500"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={1.8}
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M18.364 5.636a9 9 0 010 12.728M15.536 8.464a5 5 0 010 7.072M12 12h.01M3 3l18 18"
+                        />
+                    </svg>
+                ) : (
+                    <svg
+                        className="w-8 h-8 text-amber-500"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={1.8}
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M12 2C8.134 2 5 5.134 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.866-3.134-7-7-7z"
+                        />
+                        <circle cx="12" cy="9" r="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                )}
+            </div>
+
+            <div className="space-y-1.5">
+                <p className={`font-bold text-foreground ${isTamil ? 'text-base' : 'text-lg'}`}>{title}</p>
+                <p className={`text-muted-foreground max-w-xs ${isTamil ? 'text-xs' : 'text-sm'}`}>{body}</p>
+            </div>
+
+            <div className="flex flex-col items-center gap-2 w-full max-w-xs">
+                {settingsLabel && onSettingsPress && (
+                    <button
+                        type="button"
+                        onClick={onSettingsPress}
+                        className="w-full rounded-xl bg-primary text-primary-foreground font-bold px-6 py-3 text-sm hover:opacity-90 active:scale-95 transition-all shadow-md shadow-primary/30"
+                    >
+                        {settingsLabel}
+                    </button>
+                )}
+                <button
+                    type="button"
+                    onClick={onRetry}
+                    className="w-full rounded-xl border border-border bg-secondary/60 text-foreground font-semibold px-6 py-3 text-sm hover:bg-secondary active:scale-95 transition-all"
+                >
+                    {t.btnRetry}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+// ─── Status Badge ─────────────────────────────────────────────────────────────
+
+function StatusBadge({ isTracking, isPending, state, t }: StatusBadgeProps) {
     const label = isTracking
         ? t.statusBroadcasting
         : isPending
@@ -140,23 +259,30 @@ function StatusBadge({ isTracking, isPending, state, isTamil, t }: StatusBadgePr
           : state === 'error'
             ? t.statusError
             : t.statusIdle;
-
-    const colorClass = isTracking
-        ? 'bg-green-100/60 text-green-800 border-green-300 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800/50'
+    const dotClass = isTracking
+        ? 'bg-green-500'
         : isPending
-          ? 'bg-amber-100/60 text-amber-800 border-amber-300 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800/50'
+          ? 'bg-amber-400'
           : state === 'error'
-            ? 'bg-destructive/10 text-destructive border-destructive/30'
-            : 'bg-secondary text-secondary-foreground border-border/60';
+            ? 'bg-destructive'
+            : 'bg-muted-foreground/40';
+    const textClass = isTracking
+        ? 'text-green-600 dark:text-green-400'
+        : isPending
+          ? 'text-amber-600 dark:text-amber-400'
+          : state === 'error'
+            ? 'text-destructive'
+            : 'text-muted-foreground';
 
     return (
-        <div
-            className={`rounded-2xl px-4 py-3 border-2 font-bold text-center transition-colors shadow-sm ${isTamil ? 'text-sm' : 'text-base'} ${colorClass}`}
-        >
-            {label}
+        <div className="flex items-center gap-2 text-sm">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${dotClass} ${isTracking ? 'animate-pulse' : ''}`} />
+            <span className={`font-semibold ${textClass}`}>{label}</span>
         </div>
     );
 }
+
+// ─── Bus Selector ─────────────────────────────────────────────────────────────
 
 function BusSelector({ busId, isDisabled, t, onChange }: BusSelectorProps) {
     const [open, setOpen] = useState(false);
@@ -169,15 +295,15 @@ function BusSelector({ busId, isDisabled, t, onChange }: BusSelectorProps) {
     const selectedName = busId ? SEC_Bus_Routes[Number(busId)] : null;
 
     return (
-        <div className="rounded-2xl border border-border/60 bg-background/50 p-4 shadow-sm relative">
-            <p className="text-sm font-semibold text-muted-foreground mb-2 px-1">{t.busNumber}</p>
+        <div className="relative">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">{t.busNumber}</p>
             <button
                 type="button"
                 disabled={isDisabled}
                 onClick={() => setOpen((o) => !o)}
-                className="w-full h-14 rounded-xl border-2 border-border/60 bg-card px-4 text-left flex items-center justify-between font-bold text-lg focus:outline-none focus:border-primary/60 focus:ring-4 focus:ring-primary/10 disabled:opacity-60 transition-all shadow-inner"
+                className="w-full h-14 border-b-2 border-border bg-transparent px-0 text-left flex items-center justify-between font-bold text-lg focus:outline-none focus:border-primary disabled:opacity-50 transition-colors"
             >
-                <span className={selectedName ? 'text-foreground' : 'text-muted-foreground text-base font-normal'}>
+                <span className={selectedName ? 'text-foreground' : 'text-muted-foreground/60 font-normal text-base'}>
                     {selectedName ?? t.selectBus}
                 </span>
                 <svg
@@ -192,7 +318,7 @@ function BusSelector({ busId, isDisabled, t, onChange }: BusSelectorProps) {
             </button>
 
             {open && (
-                <div className="absolute left-4 right-4 top-[calc(100%-0.5rem)] z-50 mt-1 rounded-xl border border-border bg-card shadow-xl overflow-hidden">
+                <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-xl border border-border bg-card shadow-xl overflow-hidden">
                     <div className="p-2 border-b border-border/50">
                         <input
                             autoFocus
@@ -230,34 +356,40 @@ function BusSelector({ busId, isDisabled, t, onChange }: BusSelectorProps) {
     );
 }
 
+// ─── Tracking Button ──────────────────────────────────────────────────────────
+
 function TrackingButton({ isTracking, isPending, isTamil, t, onClick }: TrackingButtonProps) {
     const label = isTracking ? t.btnStop : isPending ? t.btnPending : t.btnStart;
     const colorClass = isTracking
-        ? 'bg-destructive text-destructive-foreground shadow-destructive/40'
-        : 'bg-primary text-primary-foreground shadow-primary/40';
+        ? 'bg-destructive text-destructive-foreground shadow-destructive/30'
+        : 'bg-primary text-primary-foreground shadow-primary/30';
 
     return (
         <button
             onClick={onClick}
             disabled={isPending}
-            className={`aspect-square w-56 sm:w-64 rounded-full shadow-2xl transition-all duration-300 disabled:opacity-60 flex items-center justify-center px-6 text-center hover:scale-105 active:scale-95 ${isTamil ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl md:text-3xl'} font-extrabold tracking-wide ${colorClass}`}
+            className={`aspect-square w-52 sm:w-60 rounded-full shadow-2xl transition-all duration-300 disabled:opacity-60 flex items-center justify-center px-6 text-center hover:scale-105 active:scale-95 ${isTamil ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl'} font-extrabold tracking-wide ${colorClass}`}
         >
             <span className="w-full wrap-break-word leading-snug">{label}</span>
         </button>
     );
 }
 
+// ─── Live Stats ───────────────────────────────────────────────────────────────
+
 function LiveStats({ updateCount, lastUpdated, isTamil, t }: LiveStatsProps) {
     return (
-        <div className="rounded-2xl border border-border bg-background px-4 py-3 space-y-2 text-base">
-            <div className="flex justify-between">
-                <span className={`text-muted-foreground ${isTamil ? 'text-sm' : ''}`}>{t.updatesSent}</span>
-                <span className="font-bold text-foreground">{updateCount}</span>
+        <div className="space-y-3 pt-4 border-t border-border/40">
+            <div className="flex justify-between items-center">
+                <span className={`text-muted-foreground ${isTamil ? 'text-xs' : 'text-sm'}`}>{t.updatesSent}</span>
+                <span className="font-bold text-foreground tabular-nums">{updateCount}</span>
             </div>
             {lastUpdated && (
-                <div className="flex justify-between">
-                    <span className={`text-muted-foreground ${isTamil ? 'text-sm' : ''}`}>{t.lastSent}</span>
-                    <span className="font-semibold text-foreground">{lastUpdated.toLocaleTimeString()}</span>
+                <div className="flex justify-between items-center">
+                    <span className={`text-muted-foreground ${isTamil ? 'text-xs' : 'text-sm'}`}>{t.lastSent}</span>
+                    <span className="font-semibold text-foreground tabular-nums">
+                        {lastUpdated.toLocaleTimeString()}
+                    </span>
                 </div>
             )}
         </div>
@@ -266,174 +398,157 @@ function LiveStats({ updateCount, lastUpdated, isTamil, t }: LiveStatsProps) {
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-type UseDriverTrackingOptions = {
-    busId: string;
-    noBusError: string;
-    noGeoError: string;
-    geolocationErrorMessages: Record<number, string>;
-};
+type UseDriverTrackingOptions = { busId: string; noBusError: string };
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
-
-function useDriverTracking({ busId, noBusError, noGeoError, geolocationErrorMessages }: UseDriverTrackingOptions) {
+function useDriverTracking({ busId, noBusError }: UseDriverTrackingOptions) {
     const [state, setState] = useState<TrackingState>('idle');
+    const [errorKind, setErrorKind] = useState<ErrorKind>(null);
     const [coords, setCoords] = useState<Coordinates | null>(null);
-    const [error, setError] = useState('');
     const [updateCount, setUpdateCount] = useState(0);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+    const [validationError, setValidationError] = useState('');
 
-    const watchIdRef = useRef<number | null>(null);
-    const wakeLockRef = useRef<WakeLockSentinel | null>(null);
-    const activeBusIdRef = useRef('');
-    const isTrackingRef = useRef(false);
-    const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const watcherIdRef = useRef<string | null>(null);
+    const lastSentRef = useRef<number>(0);
+    const busIdRef = useRef<string>('');
+    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // Listen for UPDATE_SENT from SW
-    useEffect(() => {
-        const handler = (e: MessageEvent) => {
-            if (e.data?.type === 'UPDATE_SENT') {
-                setUpdateCount((c) => c + 1);
-                setLastUpdated(new Date(e.data.timestamp));
-            }
-        };
-        navigator.serviceWorker?.addEventListener('message', handler);
-        return () => navigator.serviceWorker?.removeEventListener('message', handler);
-    }, []);
-
-    const releaseWakeLock = useCallback(() => {
-        wakeLockRef.current?.release().catch(() => {});
-        wakeLockRef.current = null;
-    }, []);
-
-    const acquireWakeLock = useCallback(async () => {
+    // ── Shared post logic ─────────────────────────────────────────────────────
+    const postLocation = useCallback(async (lat: number, lng: number) => {
+        const now = Date.now();
+        if (now - lastSentRef.current < 5_000) return;
+        lastSentRef.current = now;
         try {
-            const nav = navigator as NavigatorWithWakeLock;
-            if (nav.wakeLock) wakeLockRef.current = await nav.wakeLock.request('screen');
-        } catch {}
-    }, []);
-
-    const stopPing = useCallback(() => {
-        if (pingIntervalRef.current) {
-            clearInterval(pingIntervalRef.current);
-            pingIntervalRef.current = null;
+            await CapacitorHttp.post({
+                url: `${import.meta.env.VITE_API_BASE}/update`,
+                headers: { 'Content-Type': 'text/plain' },
+                data: `${busIdRef.current},${lat},${lng},${now}`,
+            });
+            setUpdateCount((c) => c + 1);
+            setLastUpdated(new Date(now));
+        } catch {
+            lastSentRef.current = 0; // reset so next fix retries immediately
         }
     }, []);
 
-    const startPing = useCallback(() => {
-        stopPing();
-        // Ping SW every 20s to keep it alive and let it self-heal if interval died
-        pingIntervalRef.current = setInterval(() => {
-            postToSW({ type: 'PING' });
-        }, 20000);
-    }, [stopPing]);
-
-    const stopTracking = useCallback(() => {
-        if (watchIdRef.current !== null) {
-            navigator.geolocation.clearWatch(watchIdRef.current);
-            watchIdRef.current = null;
+    // ── Clean teardown ────────────────────────────────────────────────────────
+    const teardown = useCallback(async () => {
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
         }
-        isTrackingRef.current = false;
-        stopPing();
-        postToSW({ type: 'STOP_TRACKING' });
+        if (watcherIdRef.current !== null) {
+            await BackgroundGeolocation.removeWatcher({ id: watcherIdRef.current });
+            watcherIdRef.current = null;
+        }
+    }, []);
+
+    // ── Stop ──────────────────────────────────────────────────────────────────
+    const stopTracking = useCallback(async () => {
+        await teardown();
         clearSession();
-        releaseWakeLock();
-        activeBusIdRef.current = '';
         setState('idle');
+        setErrorKind(null);
         setCoords(null);
         setUpdateCount(0);
         setLastUpdated(null);
-    }, [releaseWakeLock, stopPing]);
+        lastSentRef.current = 0;
+    }, [teardown]);
 
+    // ── Start ─────────────────────────────────────────────────────────────────
     const startTracking = useCallback(
         async (overrideBusId?: string) => {
             const trimmedId = (overrideBusId ?? busId).trim();
-            if (!trimmedId) { setError(noBusError); return; }
-            if (!navigator.geolocation) { setError(noGeoError); return; }
+            if (!trimmedId) {
+                setValidationError(noBusError);
+                return;
+            }
 
-            activeBusIdRef.current = trimmedId;
-            setError('');
+            setValidationError('');
+            busIdRef.current = trimmedId;
+
+            // Always tear down any existing watcher first.
+            // This prevents stale watcher accumulation — the "had to reinstall" bug.
+            await teardown();
+
             setState('requesting');
-            await acquireWakeLock();
+            setErrorKind(null);
+            saveSession(trimmedId);
 
-            watchIdRef.current = navigator.geolocation.watchPosition(
-                (position) => {
-                    const { latitude: lat, longitude: lng, accuracy } = position.coords;
+            watcherIdRef.current = await BackgroundGeolocation.addWatcher(
+                {
+                    backgroundMessage: 'Polaris is sharing your location with students.',
+                    backgroundTitle: 'Broadcasting live',
+                    requestPermissions: true,
+                    stale: false,
+                    distanceFilter: 0,
+                },
+                async (location, err) => {
+                    if (err || !location) {
+                        const code = err?.code ?? '';
+                        const message = err?.message ?? '';
+                        console.error('[Polaris] watcher error:', code, message);
+                        setErrorKind(classifyError(code, message));
+                        setState('error');
+                        clearSession();
+                        // Clean up the dead watcher
+                        if (watcherIdRef.current !== null) {
+                            BackgroundGeolocation.removeWatcher({ id: watcherIdRef.current });
+                            watcherIdRef.current = null;
+                        }
+                        return;
+                    }
+
+                    const { latitude: lat, longitude: lng, accuracy } = location;
                     setCoords({ lat, lng, accuracy });
                     setState('tracking');
-
-                    if (!isTrackingRef.current) {
-                        isTrackingRef.current = true;
-                        // First fix — start SW interval
-                        postToSW({ type: 'START_TRACKING', busId: activeBusIdRef.current, lat, lng });
-                        saveSession(activeBusIdRef.current);
-                        startPing();
-                    } else {
-                        // ← always include busId so SW can recover if it was killed
-                        postToSW({ type: 'UPDATE_COORDS', busId: activeBusIdRef.current, lat, lng });
-                    }
+                    await postLocation(lat, lng);
                 },
-                (geolocationError) => {
-                    const message = geolocationErrorMessages[geolocationError.code] ?? geolocationError.message;
-                    setError(message);
-                    setState('error');
-                    releaseWakeLock();
-                    stopPing();
-                    postToSW({ type: 'STOP_TRACKING' });
-                    clearSession();
-                    isTrackingRef.current = false;
-                    watchIdRef.current = null;
-                },
-                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
             );
+
+            // ── Supplemental foreground interval ──────────────────────────────
+            // Android batches GPS fixes when stationary (can be 10-15s apart).
+            // This fills the gap while in foreground, ensuring posts every ~5s.
+            // In background the watcher alone is sufficient (OS won't allow this anyway).
+            intervalRef.current = setInterval(async () => {
+                if (watcherIdRef.current === null) return; // watcher dead, don't poll
+                try {
+                    const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 4_000 });
+                    const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+                    setCoords({ lat, lng, accuracy });
+                    await postLocation(lat, lng);
+                } catch {
+                    // Silently skip — watcher callback handles error state
+                }
+            }, 5_000);
         },
-        [acquireWakeLock, busId, geolocationErrorMessages, noBusError, noGeoError, releaseWakeLock, startPing, stopPing],
+        [busId, noBusError, teardown, postLocation],
     );
 
-    // Auto-resume on reload — wait for SW to be ready before calling startTracking
+    const retry = useCallback(() => startTracking(), [startTracking]);
+
+    // Auto-resume on app restart
     useEffect(() => {
         const session = loadSession();
-        if (!session) return;
-
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.ready.then(() => {
-                startTracking(session.busId);
-            });
-        } else {
-            startTracking(session.busId);
-        }
+        if (session) startTracking(session.busId);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // On tab visible: re-send START_TRACKING in case SW was killed while away
-    useEffect(() => {
-        const handleVisibility = async () => {
-            if (document.visibilityState === 'visible' && watchIdRef.current !== null) {
-                await acquireWakeLock();
-                // Force re-announce to SW in case it was restarted while we were away
-                if (activeBusIdRef.current) {
-                    isTrackingRef.current = false; // triggers START_TRACKING on next GPS tick
-                }
-            }
-        };
-        document.addEventListener('visibilitychange', handleVisibility);
-        return () => document.removeEventListener('visibilitychange', handleVisibility);
-    }, [acquireWakeLock]);
-
-    useEffect(() => {
-        if (state !== 'tracking') return;
-        const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
-        window.addEventListener('beforeunload', handler);
-        return () => window.removeEventListener('beforeunload', handler);
-    }, [state]);
-
-    useEffect(() => () => stopTracking(), [stopTracking]);
+    useEffect(
+        () => () => {
+            teardown();
+        },
+        [teardown],
+    );
 
     return {
         coords,
-        error,
+        errorKind,
+        validationError,
         isPending: state === 'requesting',
         isTracking: state === 'tracking',
         lastUpdated,
+        retry,
         startTracking: () => startTracking(),
         state,
         stopTracking,
@@ -449,73 +564,68 @@ export default function Driver() {
     const t = translations[lang];
     const isTamil = lang === 'ta';
 
-    const { coords, error, isPending, isTracking, lastUpdated, startTracking, state, stopTracking, updateCount } =
-        useDriverTracking({
-            busId,
-            noBusError: t.errorNoBus,
-            noGeoError: t.errorNoGeo,
-            geolocationErrorMessages: t.errCodes,
-        });
+    const {
+        coords,
+        errorKind,
+        validationError,
+        isPending,
+        isTracking,
+        lastUpdated,
+        retry,
+        startTracking,
+        state,
+        stopTracking,
+        updateCount,
+    } = useDriverTracking({ busId, noBusError: t.errorNoBus });
+
+    const showErrorPrompt = state === 'error' && errorKind !== null;
 
     return (
-        <div className="h-full min-h-0 bg-background text-foreground p-3 md:p-6 flex items-center justify-center">
-            <div className="w-full max-w-md rounded-3xl border border-border/50 bg-card/80 backdrop-blur-xl shadow-2xl p-5 md:p-6 min-h-[78dvh] flex flex-col">
-                {/* Header */}
-                <div className="flex flex-col gap-3 pb-5 border-b border-border/50 relative">
-                    <div className="absolute right-0 top-0">
-                        <button
-                            type="button"
-                            onClick={() => setLang((l) => (l === 'en' ? 'ta' : 'en'))}
-                            className="group flex h-9 items-center gap-2 rounded-xl border border-border/60 bg-background/80 px-3 text-xs font-bold shadow-sm transition-all hover:bg-secondary/80"
-                        >
-                            <span
-                                className={`transition-colors uppercase tracking-wider ${lang === 'en' ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}
-                            >
-                                EN
-                            </span>
-                            <span className="text-border/80 font-normal">|</span>
-                            <span
-                                className={`transition-colors uppercase tracking-wider ${lang === 'ta' ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}
-                            >
-                                TA
-                            </span>
-                        </button>
-                    </div>
-                    <div className="text-left w-full pt-1 pr-24">
-                        <h1
-                            className={`font-extrabold text-foreground tracking-tight leading-tight mb-1.5 ${isTamil ? 'text-2xl sm:text-3xl' : 'text-3xl sm:text-4xl'}`}
-                        >
-                            {t.title}
-                        </h1>
-                        <p
-                            className={`font-medium text-muted-foreground leading-relaxed ${isTamil ? 'text-xs' : 'text-sm'}`}
-                        >
-                            {t.subtitle}
-                        </p>
-                    </div>
+        <div className="h-full min-h-0 bg-background text-foreground px-6 py-8 md:px-10 flex flex-col max-w-md mx-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between mb-8">
+                <div>
+                    <h1
+                        className={`font-extrabold text-foreground tracking-tight leading-tight mb-1 ${isTamil ? 'text-2xl' : 'text-3xl sm:text-4xl'}`}
+                    >
+                        {t.title}
+                    </h1>
+                    <p className={`text-muted-foreground ${isTamil ? 'text-xs' : 'text-sm'}`}>{t.subtitle}</p>
                 </div>
 
-                {/* Body */}
-                <div className="space-y-4 mt-5">
-                    <BusSelector
-                        busId={busId}
-                        isDisabled={isTracking || isPending}
-                        isTamil={isTamil}
-                        t={t}
-                        onChange={setBusId}
-                    />
+                <button
+                    type="button"
+                    onClick={() => setLang((l) => (l === 'en' ? 'ta' : 'en'))}
+                    className="shrink-0 flex h-9 items-center gap-2 rounded-xl border border-border/60 bg-secondary/50 px-3 text-xs font-bold transition-all hover:bg-secondary ml-4"
+                >
+                    <span className={lang === 'en' ? 'text-primary' : 'text-muted-foreground'}>EN</span>
+                    <span className="text-border font-normal">|</span>
+                    <span className={lang === 'ta' ? 'text-primary' : 'text-muted-foreground'}>TA</span>
+                </button>
+            </div>
 
-                    <StatusBadge isTracking={isTracking} isPending={isPending} state={state} isTamil={isTamil} t={t} />
+            {/* Bus selector */}
+            <BusSelector
+                busId={busId}
+                isDisabled={isTracking || isPending}
+                isTamil={isTamil}
+                t={t}
+                onChange={setBusId}
+            />
 
-                    {error && (
-                        <p className="text-destructive text-sm font-bold bg-destructive/10 border-2 border-destructive/20 rounded-xl px-4 py-3 text-center">
-                            {error}
-                        </p>
-                    )}
-                </div>
+            {/* Status */}
+            <div className="mt-5">
+                <StatusBadge isTracking={isTracking} isPending={isPending} state={state} t={t} />
+            </div>
 
-                {/* Button */}
-                <div className="flex-1 flex items-center justify-center py-6 min-h-60">
+            {/* Validation error */}
+            {validationError && <p className="mt-2 text-destructive text-sm font-semibold">{validationError}</p>}
+
+            {/* Main area */}
+            <div className="flex-1 flex items-center justify-center py-6">
+                {showErrorPrompt ? (
+                    <ErrorPrompt kind={errorKind} t={t} isTamil={isTamil} onRetry={retry} />
+                ) : (
                     <TrackingButton
                         isTracking={isTracking}
                         isPending={isPending}
@@ -523,22 +633,13 @@ export default function Driver() {
                         t={t}
                         onClick={isTracking ? stopTracking : startTracking}
                     />
-                </div>
-
-                {/* Stats */}
-                <div className="space-y-3">
-                    {isTracking && coords && (
-                        <LiveStats updateCount={updateCount} lastUpdated={lastUpdated} isTamil={isTamil} t={t} />
-                    )}
-                    {isTracking && !('wakeLock' in navigator) && (
-                        <p
-                            className={`text-amber-700 dark:text-amber-300 text-center ${isTamil ? 'text-xs' : 'text-sm'}`}
-                        >
-                            {t.keepScreen}
-                        </p>
-                    )}
-                </div>
+                )}
             </div>
+
+            {/* Live stats */}
+            {isTracking && coords && (
+                <LiveStats updateCount={updateCount} lastUpdated={lastUpdated} isTamil={isTamil} t={t} />
+            )}
         </div>
     );
 }
