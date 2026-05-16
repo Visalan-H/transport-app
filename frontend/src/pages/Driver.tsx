@@ -1,52 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SEC_Bus_Routes } from '@/constants/BusIdMap';
-import { registerPlugin } from '@capacitor/core';
-import { CapacitorHttp } from '@capacitor/core';
-import { Geolocation } from '@capacitor/geolocation';
-import { NativeSettings, AndroidSettings, IOSSettings } from 'capacitor-native-settings';
-
-// ─── Plugin ───────────────────────────────────────────────────────────────────
-// @capacitor-community/background-geolocation
-// capacitor.config: android: { useLegacyBridge: true }
-
-interface BGLocation {
-    latitude: number;
-    longitude: number;
-    accuracy: number;
-    altitude: number | null;
-    altitudeAccuracy: number | null;
-    simulated: boolean;
-    speed: number | null;
-    bearing: number | null;
-    time: number | null;
-}
-
-interface BGError {
-    code: string;
-    message: string;
-}
-
-interface BackgroundGeolocationPlugin {
-    addWatcher(
-        options: {
-            backgroundMessage?: string;
-            backgroundTitle?: string;
-            requestPermissions?: boolean;
-            stale?: boolean;
-            distanceFilter?: number;
-        },
-        callback: (location: BGLocation | undefined, error: BGError | undefined) => void,
-    ): Promise<string>;
-    removeWatcher(options: { id: string }): Promise<void>;
-    openSettings(): Promise<void>;
-}
-
-const BackgroundGeolocation = registerPlugin<BackgroundGeolocationPlugin>('BackgroundGeolocation');
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type TrackingState = 'idle' | 'requesting' | 'tracking' | 'error';
-// Distinguish WHY we're in error so we show the right recovery UI
 type ErrorKind = 'permission' | 'location_off' | 'generic' | null;
 type Coordinates = { lat: number; lng: number; accuracy: number };
 type Lang = 'en' | 'ta';
@@ -69,16 +26,17 @@ const translations = {
         btnStop: 'Stop broadcasting',
         btnPending: 'Getting location...',
         btnRetry: 'Try again',
+        btnCancel: 'Cancel',
         errorNoBus: 'Select your bus first',
         updatesSent: 'Updates sent',
         lastSent: 'Last sent',
         permissionTitle: 'Location permission needed',
         permissionBody:
-            'Polaris needs location permission to broadcast to students. Tap below to enable it in Settings.',
-        permissionBtn: 'Open App Settings',
+            'Polaris needs location access to broadcast to students. Allow location in your browser when prompted.',
+        permissionBtn: 'Allow in browser',
         locationOffTitle: 'Location is turned off',
-        locationOffBody: 'Your device location is disabled. Turn it on so Polaris can broadcast your position.',
-        locationOffBtn: 'Open Location Settings',
+        locationOffBody: 'Your device location is disabled. Enable location services in your OS or browser settings.',
+        locationOffBtn: 'Check browser settings',
         genericErrorTitle: 'Location error',
         genericErrorBody: 'Something went wrong getting your location.',
     },
@@ -97,16 +55,16 @@ const translations = {
         btnStop: 'நிறுத்து',
         btnPending: 'இருப்பிடம் கண்டறிகிறது...',
         btnRetry: 'மீண்டும் முயற்சி',
+        btnCancel: 'ரத்து செய்',
         errorNoBus: 'பேருந்தை தேர்வு செய்யவும்',
         updatesSent: 'அனுப்பிய புதுப்பிப்புகள்',
         lastSent: 'கடைசியாக அனுப்பியது',
         permissionTitle: 'இருப்பிட அனுமதி தேவை',
-        permissionBody:
-            'மாணவர்களுக்கு ஒளிபரப்ப Polaris உங்கள் இருப்பிட அனுமதி தேவை. கீழே தட்டி அமைப்புகளில் இயக்கவும்.',
-        permissionBtn: 'ஆப் அமைப்புகளை திறக்கவும்',
+        permissionBody: 'மாணவர்களுக்கு ஒளிபரப்ப Polaris உங்கள் இருப்பிட அனுமதி தேவை. உலாவியில் அனுமதிக்கவும்.',
+        permissionBtn: 'உலாவியில் அனுமதிக்கவும்',
         locationOffTitle: 'இருப்பிடம் அணைக்கப்பட்டுள்ளது',
-        locationOffBody: 'உங்கள் சாதன இருப்பிடம் முடக்கப்பட்டுள்ளது. Polaris ஒளிபரப்ப இயக்கவும்.',
-        locationOffBtn: 'இருப்பிட அமைப்புகளை திறக்கவும்',
+        locationOffBody: 'உங்கள் சாதன இருப்பிடம் முடக்கப்பட்டுள்ளது. OS அல்லது உலாவி அமைப்புகளில் இயக்கவும்.',
+        locationOffBtn: 'உலாவி அமைப்புகளை சரிபார்க்கவும்',
         genericErrorTitle: 'இருப்பிட பிழை',
         genericErrorBody: 'இருப்பிடம் கண்டறிவதில் பிரச்சனை ஏற்பட்டது.',
     },
@@ -117,6 +75,7 @@ type Translation = (typeof translations)[Lang];
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
 const STORAGE_KEY = 'polaris_tracking_session';
+const JWT_KEY = 'polaris_driver_jwt';
 
 function saveSession(busId: string) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ busId }));
@@ -133,15 +92,29 @@ function loadSession(): { busId: string } | null {
     }
 }
 
-// ─── Error classification ─────────────────────────────────────────────────────
+function saveJwt(token: string): void {
+    localStorage.setItem(JWT_KEY, token);
+}
+function loadJwt(): string | null {
+    return localStorage.getItem(JWT_KEY);
+}
 
-function classifyError(code: string, message: string): ErrorKind {
-    if (code === 'NOT_AUTHORIZED' || /denied|permission/i.test(message)) return 'permission';
-    if (
-        code === 'LOCATION_SERVICES_DISABLED' ||
-        /disabled|turned off|unavailable|not enabled|location services/i.test(message)
-    )
-        return 'location_off';
+// ─── Geo helpers ──────────────────────────────────────────────────────────────
+
+function getCurrentPosition(opts: PositionOptions = {}): Promise<GeolocationPosition> {
+    return new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, opts));
+}
+
+/**
+ * Maps the standard Web Geolocation API error codes to the app's ErrorKind.
+ *  1 → PERMISSION_DENIED  → 'permission'
+ *  2 → POSITION_UNAVAILABLE → 'location_off'
+ *  3 → TIMEOUT            → 'generic'
+ */
+function classifyGeoError(err: GeolocationPositionError | null): ErrorKind {
+    if (!err) return 'generic';
+    if (err.code === GeolocationPositionError.PERMISSION_DENIED) return 'permission';
+    if (err.code === GeolocationPositionError.POSITION_UNAVAILABLE) return 'location_off';
     return 'generic';
 }
 
@@ -161,6 +134,7 @@ type TrackingButtonProps = {
     isTamil: boolean;
     t: Translation;
     onClick: () => void;
+    onCancel: () => void;
 };
 type LiveStatsProps = { updateCount: number; lastUpdated: Date | null; isTamil: boolean; t: Translation };
 type ErrorPromptProps = { kind: ErrorKind; t: Translation; isTamil: boolean; onRetry: () => void };
@@ -168,12 +142,19 @@ type ErrorPromptProps = { kind: ErrorKind; t: Translation; isTamil: boolean; onR
 // ─── Error Prompt ─────────────────────────────────────────────────────────────
 
 function ErrorPrompt({ kind, t, isTamil, onRetry }: ErrorPromptProps) {
-    const openAppSettings = () =>
-        NativeSettings.open({ optionAndroid: AndroidSettings.ApplicationDetails, optionIOS: IOSSettings.App });
-
-    // Opens the device-level location toggle, not app settings
-    const openLocationSettings = () =>
-        NativeSettings.open({ optionAndroid: AndroidSettings.Location, optionIOS: IOSSettings.LocationServices });
+    // On web there's no deep-link to OS settings; nudge the user via an alert.
+    const openBrowserSettings = () => {
+        if ('permissions' in navigator) {
+            navigator.permissions
+                .query({ name: 'geolocation' })
+                .then(() =>
+                    alert('Please allow location access in your browser address bar or site settings, then try again.'),
+                )
+                .catch(() => {});
+        } else {
+            alert('Please allow location access in your browser settings, then try again.');
+        }
+    };
 
     const isPermission = kind === 'permission';
     const isLocationOff = kind === 'location_off';
@@ -181,7 +162,6 @@ function ErrorPrompt({ kind, t, isTamil, onRetry }: ErrorPromptProps) {
     const title = isPermission ? t.permissionTitle : isLocationOff ? t.locationOffTitle : t.genericErrorTitle;
     const body = isPermission ? t.permissionBody : isLocationOff ? t.locationOffBody : t.genericErrorBody;
     const settingsLabel = isPermission ? t.permissionBtn : isLocationOff ? t.locationOffBtn : null;
-    const onSettingsPress = isPermission ? openAppSettings : isLocationOff ? openLocationSettings : null;
 
     return (
         <div className="flex flex-col items-center gap-5 py-6 text-center">
@@ -228,10 +208,10 @@ function ErrorPrompt({ kind, t, isTamil, onRetry }: ErrorPromptProps) {
             </div>
 
             <div className="flex flex-col items-center gap-2 w-full max-w-xs">
-                {settingsLabel && onSettingsPress && (
+                {settingsLabel && (
                     <button
                         type="button"
-                        onClick={onSettingsPress}
+                        onClick={openBrowserSettings}
                         className="w-full rounded-xl bg-primary text-primary-foreground font-bold px-6 py-3 text-sm hover:opacity-90 active:scale-95 transition-all shadow-md shadow-primary/30"
                     >
                         {settingsLabel}
@@ -358,20 +338,32 @@ function BusSelector({ busId, isDisabled, t, onChange }: BusSelectorProps) {
 
 // ─── Tracking Button ──────────────────────────────────────────────────────────
 
-function TrackingButton({ isTracking, isPending, isTamil, t, onClick }: TrackingButtonProps) {
+function TrackingButton({ isTracking, isPending, isTamil, t, onClick, onCancel }: TrackingButtonProps) {
     const label = isTracking ? t.btnStop : isPending ? t.btnPending : t.btnStart;
     const colorClass = isTracking
         ? 'bg-destructive text-destructive-foreground shadow-destructive/30'
         : 'bg-primary text-primary-foreground shadow-primary/30';
 
     return (
-        <button
-            onClick={onClick}
-            disabled={isPending}
-            className={`aspect-square w-52 sm:w-60 rounded-full shadow-2xl transition-all duration-300 disabled:opacity-60 flex items-center justify-center px-6 text-center hover:scale-105 active:scale-95 ${isTamil ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl'} font-extrabold tracking-wide ${colorClass}`}
-        >
-            <span className="w-full wrap-break-word leading-snug">{label}</span>
-        </button>
+        <div className="flex flex-col items-center gap-4">
+            <button
+                onClick={onClick}
+                disabled={isPending}
+                className={`aspect-square w-52 sm:w-60 rounded-full shadow-2xl transition-all duration-300 disabled:opacity-60 flex items-center justify-center px-6 text-center hover:scale-105 active:scale-95 ${isTamil ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl'} font-extrabold tracking-wide ${colorClass}`}
+            >
+                <span className="w-full wrap-break-word leading-snug">{label}</span>
+            </button>
+
+            {isPending && (
+                <button
+                    type="button"
+                    onClick={onCancel}
+                    className={`text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground ${isTamil ? 'text-xs' : 'text-sm'}`}
+                >
+                    {t.btnCancel}
+                </button>
+            )}
+        </div>
     );
 }
 
@@ -408,44 +400,55 @@ function useDriverTracking({ busId, noBusError }: UseDriverTrackingOptions) {
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [validationError, setValidationError] = useState('');
 
-    const watcherIdRef = useRef<string | null>(null);
+    // watchPosition returns a number on the web, not a string.
+    const watcherIdRef = useRef<number | null>(null);
     const lastSentRef = useRef<number>(0);
     const busIdRef = useRef<string>('');
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const cancelledRef = useRef(false);
 
-    // ── Shared post logic ─────────────────────────────────────────────────────
+    // ── Post logic ────────────────────────────────────────────────────────────
     const postLocation = useCallback(async (lat: number, lng: number) => {
         const now = Date.now();
         if (now - lastSentRef.current < 5_000) return;
         lastSentRef.current = now;
         try {
-            await CapacitorHttp.post({
-                url: `${import.meta.env.VITE_API_BASE}/update`,
-                headers: { 'Content-Type': 'text/plain' },
-                data: `${busIdRef.current},${lat},${lng},${now}`,
+            const jwt = loadJwt();
+            const response = await fetch(`${import.meta.env.VITE_API_BASE}/update`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'text/plain',
+                    ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+                },
+                body: `${busIdRef.current},${lat},${lng},${now}`,
             });
+
+            const data = await response.json().catch(() => null);
+            const incomingJwt = data?.token ?? response.headers.get('x-token');
+            if (incomingJwt) saveJwt(incomingJwt);
+
             setUpdateCount((c) => c + 1);
             setLastUpdated(new Date(now));
         } catch {
-            lastSentRef.current = 0; // reset so next fix retries immediately
+            lastSentRef.current = 0;
         }
     }, []);
 
-    // ── Clean teardown ────────────────────────────────────────────────────────
-    const teardown = useCallback(async () => {
+    // ── Teardown ──────────────────────────────────────────────────────────────
+    const teardown = useCallback(() => {
         if (intervalRef.current) {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
         }
         if (watcherIdRef.current !== null) {
-            await BackgroundGeolocation.removeWatcher({ id: watcherIdRef.current });
+            navigator.geolocation.clearWatch(watcherIdRef.current);
             watcherIdRef.current = null;
         }
     }, []);
 
     // ── Stop ──────────────────────────────────────────────────────────────────
-    const stopTracking = useCallback(async () => {
-        await teardown();
+    const stopTracking = useCallback(() => {
+        teardown();
         clearSession();
         setState('idle');
         setErrorKind(null);
@@ -453,6 +456,15 @@ function useDriverTracking({ busId, noBusError }: UseDriverTrackingOptions) {
         setUpdateCount(0);
         setLastUpdated(null);
         lastSentRef.current = 0;
+    }, [teardown]);
+
+    // ── Cancel (while still in 'requesting') ─────────────────────────────────
+    const cancelTracking = useCallback(() => {
+        cancelledRef.current = true;
+        teardown();
+        clearSession();
+        setState('idle');
+        setErrorKind(null);
     }, [teardown]);
 
     // ── Start ─────────────────────────────────────────────────────────────────
@@ -466,59 +478,65 @@ function useDriverTracking({ busId, noBusError }: UseDriverTrackingOptions) {
 
             setValidationError('');
             busIdRef.current = trimmedId;
+            cancelledRef.current = false;
 
-            // Always tear down any existing watcher first.
-            // This prevents stale watcher accumulation — the "had to reinstall" bug.
-            await teardown();
-
+            teardown();
             setState('requesting');
             setErrorKind(null);
             saveSession(trimmedId);
 
-            watcherIdRef.current = await BackgroundGeolocation.addWatcher(
-                {
-                    backgroundMessage: 'Polaris is sharing your location with students.',
-                    backgroundTitle: 'Broadcasting live',
-                    requestPermissions: true,
-                    stale: false,
-                    distanceFilter: 0,
-                },
-                async (location, err) => {
-                    if (err || !location) {
-                        const code = err?.code ?? '';
-                        const message = err?.message ?? '';
-                        console.error('[Polaris] watcher error:', code, message);
-                        setErrorKind(classifyError(code, message));
-                        setState('error');
-                        clearSession();
-                        // Clean up the dead watcher
-                        if (watcherIdRef.current !== null) {
-                            BackgroundGeolocation.removeWatcher({ id: watcherIdRef.current });
-                            watcherIdRef.current = null;
-                        }
-                        return;
-                    }
+            // Pre-flight: detect location-off before registering the watcher.
+            // On web, code 2 (POSITION_UNAVAILABLE) means the device has GPS
+            // disabled; code 1 (PERMISSION_DENIED) means we need to request —
+            // fall through so watchPosition triggers the browser prompt.
+            try {
+                await getCurrentPosition({ enableHighAccuracy: false, timeout: 3_000 });
+            } catch (e: unknown) {
+                if (cancelledRef.current) return;
+                const kind = classifyGeoError(e as GeolocationPositionError);
+                if (kind === 'location_off') {
+                    setErrorKind('location_off');
+                    setState('error');
+                    clearSession();
+                    return;
+                }
+            }
 
-                    const { latitude: lat, longitude: lng, accuracy } = location;
+            if (cancelledRef.current) return;
+
+            // Register the persistent watcher.
+            watcherIdRef.current = navigator.geolocation.watchPosition(
+                async (position) => {
+                    if (cancelledRef.current) return;
+                    const { latitude: lat, longitude: lng, accuracy } = position.coords;
                     setCoords({ lat, lng, accuracy });
                     setState('tracking');
                     await postLocation(lat, lng);
                 },
+                (err) => {
+                    if (cancelledRef.current) return;
+                    console.error('[Polaris] watcher error:', err);
+                    setErrorKind(classifyGeoError(err));
+                    setState('error');
+                    clearSession();
+                    if (watcherIdRef.current !== null) {
+                        navigator.geolocation.clearWatch(watcherIdRef.current);
+                        watcherIdRef.current = null;
+                    }
+                },
+                { enableHighAccuracy: true, maximumAge: 0 },
             );
 
-            // ── Supplemental foreground interval ──────────────────────────────
-            // Android batches GPS fixes when stationary (can be 10-15s apart).
-            // This fills the gap while in foreground, ensuring posts every ~5s.
-            // In background the watcher alone is sufficient (OS won't allow this anyway).
+            // Supplemental foreground interval (mirrors the original's 5 s poll).
             intervalRef.current = setInterval(async () => {
-                if (watcherIdRef.current === null) return; // watcher dead, don't poll
+                if (watcherIdRef.current === null) return;
                 try {
-                    const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 4_000 });
+                    const pos = await getCurrentPosition({ enableHighAccuracy: true, timeout: 4_000 });
                     const { latitude: lat, longitude: lng, accuracy } = pos.coords;
                     setCoords({ lat, lng, accuracy });
                     await postLocation(lat, lng);
                 } catch {
-                    // Silently skip — watcher callback handles error state
+                    // Silently skip — watcher callback handles error state.
                 }
             }, 5_000);
         },
@@ -527,7 +545,7 @@ function useDriverTracking({ busId, noBusError }: UseDriverTrackingOptions) {
 
     const retry = useCallback(() => startTracking(), [startTracking]);
 
-    // Auto-resume on app restart
+    // Auto-resume on page reload if a session was persisted.
     useEffect(() => {
         const session = loadSession();
         if (session) startTracking(session.busId);
@@ -542,6 +560,7 @@ function useDriverTracking({ busId, noBusError }: UseDriverTrackingOptions) {
     );
 
     return {
+        cancelTracking,
         coords,
         errorKind,
         validationError,
@@ -565,6 +584,7 @@ export default function Driver() {
     const isTamil = lang === 'ta';
 
     const {
+        cancelTracking,
         coords,
         errorKind,
         validationError,
@@ -632,6 +652,7 @@ export default function Driver() {
                         isTamil={isTamil}
                         t={t}
                         onClick={isTracking ? stopTracking : startTracking}
+                        onCancel={cancelTracking}
                     />
                 )}
             </div>

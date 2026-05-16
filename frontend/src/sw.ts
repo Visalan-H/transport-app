@@ -30,7 +30,7 @@ function sendUpdate() {
                 clients.forEach((c) => c.postMessage({ type: 'UPDATE_SENT', timestamp }));
             });
         })
-        .catch(() => { });
+        .catch(() => {});
 }
 
 function startInterval() {

@@ -51,7 +51,7 @@ const isValidDriverJwt = async (req: Request): Promise<boolean> => {
         const cookie = req.headers.get('cookie') ?? '';
         const token = cookie
             .split(';')
-            .find(c => c.trim().startsWith('sessionToken='))
+            .find((c) => c.trim().startsWith('sessionToken='))
             ?.split('=')[1]
             ?.trim();
 
@@ -142,7 +142,7 @@ setInterval(async () => {
     const batch = [...buffer];
     buffer.length = 0;
 
-    const payload: BusDetails[] = batch.map(bus => {
+    const payload: BusDetails[] = batch.map((bus) => {
         const [id, lat, lng, timestamp] = bus.split(',').map(Number) as [number, number, number, number];
         return { id, lat, lng, timestamp };
     });

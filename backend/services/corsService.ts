@@ -1,5 +1,5 @@
-const ALLOWED_ORIGINS = 'http://localhost:5173,https://6pwng25f-80.inc1.devtunnels.ms,http://localhost,capacitor://localhost,https://localhost'
-    .split(',')
+const ALLOWED_ORIGINS = process.env
+    .ALLOWED_ORIGINS!.split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
 
