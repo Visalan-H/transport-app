@@ -35,6 +35,16 @@ export default defineConfig({
             },
         }),
     ],
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    map: ['maplibre-gl', 'react-map-gl/maplibre'],
+                    vendor: ['react', 'react-dom', 'react-router-dom'],
+                },
+            },
+        },
+    },
     resolve: {
         alias: {
             '@': path.resolve(__dirname, './src'),

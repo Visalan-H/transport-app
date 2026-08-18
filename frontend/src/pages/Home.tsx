@@ -37,8 +37,8 @@ export default function Home() {
             <div className="flex-1 relative min-h-0 px-2 pb-1.5 will-change-[height]">
                 {isLoadingBuses && (
                     <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 bg-card border border-border rounded-full px-3 py-1.5 text-xs text-muted-foreground shadow flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                        Fetching buses...
+                        <span className="size-1.5 rounded-full bg-primary animate-pulse" />
+                        Fetching buses…
                     </div>
                 )}
                 <MapComponent busLocations={busLocations} userLocation={userLocation} mapRef={mapRef} />

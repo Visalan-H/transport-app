@@ -7,13 +7,17 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
     second: '2-digit',
 });
 
+/** No update reaching the server for this long greys a bus out on the map.
+ *  Matches `Config.staleAfter` in the driver app (`driver_app/lib/config.dart`). */
+export const STALE_AFTER_MS = 30_000;
+
 export const useBusLayerProps = (theme: string): LayerProps =>
     useMemo(
         () => ({
             id: 'bus-icons',
             type: 'symbol',
             layout: {
-                'icon-image': 'bus-icon',
+                'icon-image': ['case', ['get', 'stale'], 'bus-icon-stale', 'bus-icon'],
                 'icon-size': 1.5,
                 'icon-anchor': 'bottom',
                 'icon-allow-overlap': true,
@@ -29,6 +33,7 @@ export const useBusLayerProps = (theme: string): LayerProps =>
                 'text-color': theme === 'dark' ? '#ffffff' : '#1f2937',
                 'text-halo-color': theme === 'dark' ? '#1f2937' : '#ffffff',
                 'text-halo-width': 1.5,
+                'text-opacity': ['case', ['get', 'stale'], 0.5, 1],
             },
         }),
         [theme],
@@ -37,6 +42,7 @@ export const useBusLayerProps = (theme: string): LayerProps =>
 export const useBusGeoJSON = (
     validBuses: { id: number; lat: number; lng: number; timestamp: number }[],
     routes: Record<number, string>,
+    now: number,
 ) =>
     useMemo(
         () => ({
@@ -49,8 +55,9 @@ export const useBusGeoJSON = (
                     label: String(routes[bus.id] || bus.id),
                     timestamp: bus.timestamp,
                     timeStr: timeFormatter.format(new Date(bus.timestamp)),
+                    stale: now - bus.timestamp > STALE_AFTER_MS,
                 },
             })),
         }),
-        [validBuses, routes],
+        [validBuses, routes, now],
     );

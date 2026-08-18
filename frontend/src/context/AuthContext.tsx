@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import api from '../utils/axiosInstance';
+import api from '@/utils/axiosInstance';
 
 interface User {
     id: string;
@@ -42,13 +42,13 @@ const getErrMessage = (err: ApiError, fallback: string): string => err?.data?.er
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(() => {
         if (typeof window !== 'undefined') {
-            const storedUser = localStorage.getItem('user');
-            if (storedUser) {
-                try {
-                    return JSON.parse(storedUser) as User;
-                } catch {
-                    localStorage.removeItem('user');
-                }
+            const storedUser = localStorage.getItem('user:v1');
+                if (storedUser) {
+                    try {
+                        return JSON.parse(storedUser) as User;
+                    } catch {
+                        localStorage.removeItem('user:v1');
+                    }
             }
         }
         return null;
@@ -60,15 +60,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .then((res) => {
                 if (res.data?.authenticated && res.data.user) {
                     setUser(res.data.user);
-                    localStorage.setItem('user', JSON.stringify(res.data.user));
+                    localStorage.setItem('user:v1', JSON.stringify(res.data.user));
                 } else {
                     setUser(null);
-                    localStorage.removeItem('user');
+                    localStorage.removeItem('user:v1');
                 }
             })
             .catch(() => {
                 setUser(null);
-                localStorage.removeItem('user');
+                localStorage.removeItem('user:v1');
             })
             .finally(() => setLoading(false));
     }, []);
@@ -87,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const res = await api.post<AuthResponse>('/auth/login', { email, password });
             if (res.status >= 200 && res.status < 300 && res.data?.success) {
                 setUser(res.data.user!);
-                localStorage.setItem('user', JSON.stringify(res.data.user));
+                localStorage.setItem('user:v1', JSON.stringify(res.data.user));
                 return { ok: true };
             }
             return { ok: false, message: res.data?.error || 'Login failed' };
@@ -106,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const res = await api.post<AuthResponse>('/auth/register', { username, email, password, otp });
             if (res.status >= 200 && res.status < 300 && res.data?.success) {
                 setUser(res.data.user!);
-                localStorage.setItem('user', JSON.stringify(res.data.user));
+                localStorage.setItem('user:v1', JSON.stringify(res.data.user));
                 return { ok: true };
             }
             return { ok: false, message: res.data?.error || 'Registration failed' };
@@ -119,11 +119,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
             await api.post('/auth/logout');
             setUser(null);
-            localStorage.removeItem('user');
+            localStorage.removeItem('user:v1');
             return { ok: true };
         } catch (err) {
             setUser(null);
-            localStorage.removeItem('user');
+            localStorage.removeItem('user:v1');
             return { ok: false, message: getErrMessage(err as ApiError, 'Network error') };
         }
     };

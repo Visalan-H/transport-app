@@ -40,12 +40,26 @@ const getBusImage = (): Promise<HTMLImageElement> => {
     return cachedBusImagePromise;
 };
 
+const toGreyscale = (img: HTMLImageElement): ImageData => {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d')!;
+    ctx.filter = 'grayscale(100%) opacity(55%)';
+    ctx.drawImage(img, 0, 0);
+    return ctx.getImageData(0, 0, canvas.width, canvas.height);
+};
+
 export const registerBusImage = async (map: maplibregl.Map) => {
     try {
-        if (map.hasImage('bus-icon')) return;
-
         const img = await getBusImage();
-        map.addImage('bus-icon', img, { pixelRatio: 2 });
+
+        if (!map.hasImage('bus-icon')) {
+            map.addImage('bus-icon', img, { pixelRatio: 2 });
+        }
+        if (!map.hasImage('bus-icon-stale')) {
+            map.addImage('bus-icon-stale', toGreyscale(img), { pixelRatio: 2 });
+        }
     } catch (e) {
         console.error('Failed to load bus icon', e);
     }

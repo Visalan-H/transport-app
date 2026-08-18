@@ -8,6 +8,8 @@ const axiosApi = axios.create({
     headers: { 'Content-Type': 'application/json' },
 });
 
+export { axiosApi };
+
 export interface ApiResponse<T = unknown> {
     status: number;
     data: T;
