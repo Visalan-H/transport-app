@@ -50,10 +50,11 @@ export function AppDrawer({ nearbyBuses, isLoadingLocation, mapRef }: AppDrawerP
                         </div>
                     ) : (
                         visibleNearbyBuses.map((bus) => (
-                            <div
+                            <button
                                 key={bus.id}
+                                type="button"
                                 onClick={() => handleClick(bus.lat, bus.lng)}
-                                className="p-3 border border-border rounded flex justify-between items-center cursor-pointer"
+                                className="w-full text-left p-3 border border-border rounded flex justify-between items-center cursor-pointer"
                             >
                                 <div>
                                     <h3 className="font-semibold">{SEC_Bus_Routes[bus.id]}</h3>
@@ -61,7 +62,7 @@ export function AppDrawer({ nearbyBuses, isLoadingLocation, mapRef }: AppDrawerP
                                         {(bus.distance * 1000).toFixed(0)} m away
                                     </p>
                                 </div>
-                            </div>
+                            </button>
                         ))
                     )}
                 </div>

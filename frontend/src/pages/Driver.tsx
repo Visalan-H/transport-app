@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SEC_Bus_Routes } from '@/constants/BusIdMap';
+import { axiosApi } from '@/utils/axiosInstance';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -14,7 +15,7 @@ const translations = {
     en: {
         title: 'Driver Mode',
         subtitle: 'Your location will be shared with students',
-        busNumber: 'Bus number',
+        busName: 'Bus name',
         selectBus: 'Select your bus',
         busSearch: 'Search routes...',
         noRoutes: 'No routes found',
@@ -43,24 +44,24 @@ const translations = {
     ta: {
         title: 'ஓட்டுநர் பயன்முறை',
         subtitle: 'உங்கள் இருப்பிடம் மாணவர்களுக்கு அனுப்பப்படும்',
-        busNumber: 'பேருந்து எண்',
+        busName: 'பேருந்து பெயர்',
         selectBus: 'உங்கள் பேருந்தை தேர்வு செய்யவும்',
         busSearch: 'வழிகளை தேடவும்...',
         noRoutes: 'வழிகள் எதுவும் இல்லை',
         statusBroadcasting: 'நேரடி ஒளிபரப்பு இயங்குகிறது',
-        statusGetting: 'இருப்பிடம் கண்டறிகிறது...',
+        statusGetting: 'இருப்பிடத்தை கண்டறிகிறது...',
         statusError: 'பிழை',
         statusIdle: 'ஒளிபரப்பு இல்லை',
-        btnStart: 'தொடங்கு',
-        btnStop: 'நிறுத்து',
-        btnPending: 'இருப்பிடம் கண்டறிகிறது...',
-        btnRetry: 'மீண்டும் முயற்சி',
+        btnStart: 'ஒளிபரப்பு தொடங்கு',
+        btnStop: 'ஒளிபரப்பு நிறுத்து',
+        btnPending: 'இருப்பிடத்தை கண்டறிகிறது...',
+        btnRetry: 'மீண்டும் முயற்சிக்கவும்',
         btnCancel: 'ரத்து செய்',
-        errorNoBus: 'பேருந்தை தேர்வு செய்யவும்',
+        errorNoBus: 'முதலில் பேருந்தை தேர்வு செய்யவும்',
         updatesSent: 'அனுப்பிய புதுப்பிப்புகள்',
         lastSent: 'கடைசியாக அனுப்பியது',
         permissionTitle: 'இருப்பிட அனுமதி தேவை',
-        permissionBody: 'மாணவர்களுக்கு ஒளிபரப்ப Polaris உங்கள் இருப்பிட அனுமதி தேவை. உலாவியில் அனுமதிக்கவும்.',
+        permissionBody: 'மாணவர்களுக்கு ஒளிபரப்ப Polaris-க்கு உங்கள் இருப்பிட அனுமதி தேவை. உலாவியில் அனுமதிக்கவும்.',
         permissionBtn: 'உலாவியில் அனுமதிக்கவும்',
         locationOffTitle: 'இருப்பிடம் அணைக்கப்பட்டுள்ளது',
         locationOffBody: 'உங்கள் சாதன இருப்பிடம் முடக்கப்பட்டுள்ளது. OS அல்லது உலாவி அமைப்புகளில் இயக்கவும்.',
@@ -166,13 +167,13 @@ function ErrorPrompt({ kind, t, isTamil, onRetry }: ErrorPromptProps) {
     return (
         <div className="flex flex-col items-center gap-5 py-6 text-center">
             <div
-                className={`w-16 h-16 rounded-full flex items-center justify-center ${
+                className={`size-16 rounded-full flex items-center justify-center ${
                     isLocationOff ? 'bg-blue-100 dark:bg-blue-950/40' : 'bg-amber-100 dark:bg-amber-950/40'
                 }`}
             >
                 {isLocationOff ? (
                     <svg
-                        className="w-8 h-8 text-blue-500"
+                        className="size-8 text-blue-500"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -186,7 +187,7 @@ function ErrorPrompt({ kind, t, isTamil, onRetry }: ErrorPromptProps) {
                     </svg>
                 ) : (
                     <svg
-                        className="w-8 h-8 text-amber-500"
+                        className="size-8 text-amber-500"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -256,7 +257,7 @@ function StatusBadge({ isTracking, isPending, state, t }: StatusBadgeProps) {
 
     return (
         <div className="flex items-center gap-2 text-sm">
-            <span className={`w-2 h-2 rounded-full shrink-0 ${dotClass} ${isTracking ? 'animate-pulse' : ''}`} />
+            <span className={`size-2 rounded-full shrink-0 ${dotClass} ${isTracking ? 'animate-pulse' : ''}`} />
             <span className={`font-semibold ${textClass}`}>{label}</span>
         </div>
     );
@@ -276,7 +277,7 @@ function BusSelector({ busId, isDisabled, t, onChange }: BusSelectorProps) {
 
     return (
         <div className="relative">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">{t.busNumber}</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">{t.busName}</p>
             <button
                 type="button"
                 disabled={isDisabled}
@@ -414,17 +415,18 @@ function useDriverTracking({ busId, noBusError }: UseDriverTrackingOptions) {
         lastSentRef.current = now;
         try {
             const jwt = loadJwt();
-            const response = await fetch(`${import.meta.env.VITE_API_BASE}/update`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'text/plain',
-                    ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+            const response = await axiosApi.post(
+                '/update',
+                `${busIdRef.current},${lat},${lng},${now}`,
+                {
+                    headers: {
+                        'Content-Type': 'text/plain',
+                        ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+                    },
                 },
-                body: `${busIdRef.current},${lat},${lng},${now}`,
-            });
+            );
 
-            const data = await response.json().catch(() => null);
-            const incomingJwt = data?.token ?? response.headers.get('x-token');
+            const incomingJwt = response.data?.token;
             if (incomingJwt) saveJwt(incomingJwt);
 
             setUpdateCount((c) => c + 1);

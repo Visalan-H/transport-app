@@ -37,3 +37,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .DS_Store
 
 polaris-key.pem
+.claude/
+CLAUDE.md
+.commandcode/
+driver_app/context.md
+driver_app/screen1.png

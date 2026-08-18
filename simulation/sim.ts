@@ -2,7 +2,6 @@ import type { BusDetails, BusText } from '../types';
 
 const INTERVAL = 5000;
 const env = (globalThis as { Bun?: { env?: Record<string, string | undefined> } }).Bun?.env || {};
-const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env || {};
 const TARGET_URL = env.TARGET_URL || 'http://localhost:4000/update';
 const GPS_API_KEY = env.GPS_API_KEY;
 

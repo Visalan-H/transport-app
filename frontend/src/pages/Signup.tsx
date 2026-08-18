@@ -90,7 +90,7 @@ export default function Signup() {
                                     Username
                                 </Label>
                                 <div className="relative group">
-                                    <User className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70 group-focus-within:text-foreground group-focus-within:scale-110 transition-all" />
+                                    <User className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/70 group-focus-within:text-foreground group-focus-within:scale-110 transition-all" />
                                     <Input
                                         id="username"
                                         type="text"
@@ -112,7 +112,7 @@ export default function Signup() {
                                     Email
                                 </Label>
                                 <div className="relative group">
-                                    <Mail className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70 group-focus-within:text-foreground group-focus-within:scale-110 transition-all" />
+                                    <Mail className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/70 group-focus-within:text-foreground group-focus-within:scale-110 transition-all" />
                                     <Input
                                         id="email"
                                         type="email"
@@ -129,7 +129,7 @@ export default function Signup() {
                             {error && (
                                 <div className="animate-in fade-in slide-in-from-top-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-base text-destructive">
                                     <span className="flex items-center gap-2">
-                                        <span className="h-1.5 w-1.5 rounded-full bg-destructive animate-pulse" />
+                                        <span className="size-1.5 rounded-full bg-destructive animate-pulse" />
                                         {error}
                                     </span>
                                 </div>
@@ -142,8 +142,8 @@ export default function Signup() {
                             >
                                 {isLoading ? (
                                     <span className="flex items-center gap-2">
-                                        <Loader2 className="h-5 w-5 animate-spin" />
-                                        <span>Sending code...</span>
+                                        <Loader2 className="size-5 animate-spin" />
+                                        <span>Sending code…</span>
                                     </span>
                                 ) : (
                                     'Verify Email'
@@ -160,7 +160,7 @@ export default function Signup() {
                                 }}
                                 className="flex items-center gap-2 text-base font-semibold text-muted-foreground hover:text-foreground transition-all"
                             >
-                                <ArrowLeft className="h-4 w-4" />
+                                <ArrowLeft className="size-4" />
                                 Back
                             </button>
 
@@ -172,7 +172,7 @@ export default function Signup() {
                                     Verification Code
                                 </Label>
                                 <div className="relative group">
-                                    <KeyRound className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70 group-focus-within:text-foreground group-focus-within:scale-110 transition-all" />
+                                    <KeyRound className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/70 group-focus-within:text-foreground group-focus-within:scale-110 transition-all" />
                                     <Input
                                         id="otp"
                                         type="text"
@@ -207,7 +207,7 @@ export default function Signup() {
                                     Password
                                 </Label>
                                 <div className="relative group">
-                                    <Lock className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70 group-focus-within:text-foreground group-focus-within:scale-110 transition-all" />
+                                    <Lock className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/70 group-focus-within:text-foreground group-focus-within:scale-110 transition-all" />
                                     <Input
                                         id="password"
                                         type={showPassword ? 'text' : 'password'}
@@ -224,7 +224,7 @@ export default function Signup() {
                                         className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/70 hover:text-foreground hover:scale-110 transition-all"
                                         tabIndex={-1}
                                     >
-                                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                        {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                                     </button>
                                 </div>
                             </div>
@@ -237,7 +237,7 @@ export default function Signup() {
                                     Confirm Password
                                 </Label>
                                 <div className="relative group">
-                                    <Lock className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70 group-focus-within:text-foreground group-focus-within:scale-110 transition-all" />
+                                    <Lock className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/70 group-focus-within:text-foreground group-focus-within:scale-110 transition-all" />
                                     <Input
                                         id="confirmPassword"
                                         type={showPassword ? 'text' : 'password'}
@@ -254,7 +254,7 @@ export default function Signup() {
                             {error && (
                                 <div className="animate-in fade-in slide-in-from-top-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-base text-destructive">
                                     <span className="flex items-center gap-2">
-                                        <span className="h-1.5 w-1.5 rounded-full bg-destructive animate-pulse" />
+                                        <span className="size-1.5 rounded-full bg-destructive animate-pulse" />
                                         {error}
                                     </span>
                                 </div>
@@ -267,8 +267,8 @@ export default function Signup() {
                             >
                                 {isLoading ? (
                                     <span className="flex items-center gap-2">
-                                        <Loader2 className="h-5 w-5 animate-spin" />
-                                        <span>Creating account...</span>
+                                        <Loader2 className="size-5 animate-spin" />
+                                        <span>Creating account…</span>
                                     </span>
                                 ) : (
                                     'Create Account'

@@ -155,8 +155,8 @@ export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapCom
         <>
             {isMapLoading && (
                 <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-card border border-border rounded-full px-3 py-1.5 text-xs text-muted-foreground shadow flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                    Loading map tiles...
+                    <span className="size-1.5 rounded-full bg-primary animate-pulse" />
+                    Loading map tiles…
                 </div>
             )}
             <Map
@@ -187,7 +187,7 @@ export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapCom
                 <button
                     onClick={zoomToUser}
                     disabled={!userLocation}
-                    className="w-12 h-12 flex justify-center items-center absolute bottom-3 right-3 z-10 bg-card text-card-foreground border border-border p-2 rounded-2xl shadow-lg hover:bg-primary hover:text-primary-foreground transition-colors disabled:opacity-50 cursor-pointer"
+                    className="size-12 flex justify-center items-center absolute bottom-3 right-3 z-10 bg-card text-card-foreground border border-border p-2 rounded-2xl shadow-lg hover:bg-primary hover:text-primary-foreground transition-colors disabled:opacity-50 cursor-pointer"
                     title="Zoom to my location"
                 >
                     <MemoizedLocate />

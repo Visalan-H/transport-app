@@ -48,12 +48,23 @@ const isValidGpsKey = (req: Request): boolean => {
 
 const isValidDriverJwt = async (req: Request): Promise<boolean> => {
     try {
-        const cookie = req.headers.get('cookie') ?? '';
-        const token = cookie
-            .split(';')
-            .find((c) => c.trim().startsWith('sessionToken='))
-            ?.split('=')[1]
-            ?.trim();
+        let token: string | undefined;
+
+        // 1. Check Authorization: Bearer header (for native/mobile app)
+        const authHeader = req.headers.get('authorization');
+        if (authHeader?.startsWith('Bearer ')) {
+            token = authHeader.slice(7);
+        }
+
+        // 2. Fall back to session cookie (for web app)
+        if (!token) {
+            const cookie = req.headers.get('cookie') ?? '';
+            token = cookie
+                .split(';')
+                .find((c) => c.trim().startsWith('sessionToken='))
+                ?.split('=')[1]
+                ?.trim();
+        }
 
         if (!token) return false;
 

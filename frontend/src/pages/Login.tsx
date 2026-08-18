@@ -50,7 +50,7 @@ export default function Login() {
                                 Email
                             </Label>
                             <div className="relative group">
-                                <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70 group-focus-within:text-foreground group-focus-within:scale-110 transition-all" />
+                                <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/70 group-focus-within:text-foreground group-focus-within:scale-110 transition-all" />
                                 <Input
                                     id="email"
                                     type="email"
@@ -72,7 +72,7 @@ export default function Login() {
                                 Password
                             </Label>
                             <div className="relative group">
-                                <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70 group-focus-within:text-foreground group-focus-within:scale-110 transition-all" />
+                                <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/70 group-focus-within:text-foreground group-focus-within:scale-110 transition-all" />
                                 <Input
                                     id="password"
                                     type={showPassword ? 'text' : 'password'}
@@ -89,7 +89,7 @@ export default function Login() {
                                     className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/70 hover:text-foreground hover:scale-110 transition-all"
                                     tabIndex={-1}
                                 >
-                                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                                 </button>
                             </div>
                         </div>
@@ -97,7 +97,7 @@ export default function Login() {
                         {error && (
                             <div className="animate-in fade-in slide-in-from-top-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-base text-destructive">
                                 <span className="flex items-center gap-2">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-destructive animate-pulse" />
+                                    <span className="size-1.5 rounded-full bg-destructive animate-pulse" />
                                     {error}
                                 </span>
                             </div>
@@ -110,8 +110,8 @@ export default function Login() {
                         >
                             {isLoading ? (
                                 <span className="flex items-center gap-2">
-                                    <Loader2 className="h-5 w-5 animate-spin" />
-                                    <span>Signing in...</span>
+                                    <Loader2 className="size-5 animate-spin" />
+                                    <span>Signing in…</span>
                                 </span>
                             ) : (
                                 'Sign in'

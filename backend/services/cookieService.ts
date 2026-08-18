@@ -25,7 +25,11 @@ export async function generateAndSetCookie(req: BunRequest, userId: number, emai
 }
 
 export function clearCookie(req: BunRequest) {
-    req.cookies.delete('sessionToken');
+    req.cookies.delete('sessionToken', {
+        path: cookieOptions.path,
+        secure: cookieOptions.secure,
+        sameSite: cookieOptions.sameSite,
+    });
 }
 
 export async function decodeBearer(req: BunRequest) {
