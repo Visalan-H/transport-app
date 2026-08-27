@@ -1,0 +1,25 @@
+# Release signing config. Copy this file to `key.properties` (same directory)
+# and fill in the real values. `key.properties` is gitignored — never commit it,
+# and never commit the .jks file it points at.
+#
+# Generate the keystore first (choose a real password when prompted):
+#
+#   keytool -genkey -v -keystore ~/polaris-upload-key.jks \
+#     -keyalg RSA -keysize 2048 -validity 10000 -alias polaris
+#
+# Back up BOTH the .jks file and its password somewhere durable. If they are
+# lost, no future build can update an existing install — every driver has to
+# uninstall and set the app up again.
+
+# Absolute path to the keystore. Keep it OUTSIDE this repo.
+#   Windows: use forward slashes, e.g. C:/Users/you/polaris-upload-key.jks
+storeFile=/absolute/path/to/polaris-upload-key.jks
+
+# The password you chose when running keytool.
+storePassword=
+
+# The -alias value from the keytool command above.
+keyAlias=polaris
+
+# Same as storePassword unless you deliberately set a separate key password.
+keyPassword=
