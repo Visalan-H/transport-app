@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import type { BusDetails } from '../../../types';
 import { SEC_Bus_Routes } from '@/constants/BusIdMap';
 import { LoadingSpinner } from './LoadingSpinner';
 import type { MapRef } from 'react-map-gl/maplibre';
-import useZoom from '@/utils/zoomTo';
+import zoomTo from '@/utils/zoomTo';
+import { useDelayedVisibility } from '@/hooks/useDelayedVisibility';
 
 type NearbyBus = BusDetails & { distance: number };
 
@@ -16,16 +17,11 @@ type AppDrawerProps = {
 
 export function AppDrawer({ nearbyBuses, isLoadingLocation, mapRef }: AppDrawerProps) {
     const [expanded, setExpanded] = useState(false);
-    const [isVisible, setIsVisible] = useState(false);
-
-    useEffect(() => {
-        // Trigger animation after component mounts
-        const timer = setTimeout(() => setIsVisible(true), 100);
-        return () => clearTimeout(timer);
-    }, []);
+    const isVisible = useDelayedVisibility({ delayMs: 100 });
+    const visibleNearbyBuses = nearbyBuses.slice(0, 10);
 
     const handleClick = (lat: number, lng: number) => {
-        useZoom({ lat, lng, mapRef });
+        zoomTo({ lat, lng, mapRef });
     };
 
     return (
@@ -53,11 +49,12 @@ export function AppDrawer({ nearbyBuses, isLoadingLocation, mapRef }: AppDrawerP
                             <p className="text-muted-foreground text-sm">No buses nearby</p>
                         </div>
                     ) : (
-                        nearbyBuses.slice(0, 10).map((bus) => (
-                            <div
+                        visibleNearbyBuses.map((bus) => (
+                            <button
                                 key={bus.id}
+                                type="button"
                                 onClick={() => handleClick(bus.lat, bus.lng)}
-                                className="p-3 border border-border rounded flex justify-between items-center cursor-pointer"
+                                className="w-full text-left p-3 border border-border rounded flex justify-between items-center cursor-pointer"
                             >
                                 <div>
                                     <h3 className="font-semibold">{SEC_Bus_Routes[bus.id]}</h3>
@@ -65,7 +62,7 @@ export function AppDrawer({ nearbyBuses, isLoadingLocation, mapRef }: AppDrawerP
                                         {(bus.distance * 1000).toFixed(0)} m away
                                     </p>
                                 </div>
-                            </div>
+                            </button>
                         ))
                     )}
                 </div>

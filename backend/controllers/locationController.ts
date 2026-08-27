@@ -95,7 +95,7 @@ export const handleStream = (req: BunRequest) => {
                     log('info', 'sse_client_disconnected', { activeClients: controllers.size });
                     try {
                         controller.close();
-                    } catch { }
+                    } catch {}
                 });
             },
         }),

@@ -2,7 +2,11 @@ import { useAuth } from '@/context/AuthContext';
 import { LoadingSpinner } from '../LoadingSpinner';
 import { Navigate } from 'react-router-dom';
 
-export default function PublicRoute({ children }: { children: React.ReactNode }) {
+type RouteGuardProps = {
+    children: React.ReactNode;
+};
+
+export default function PublicRoute({ children }: RouteGuardProps) {
     const { user, loading } = useAuth();
 
     if (loading) {

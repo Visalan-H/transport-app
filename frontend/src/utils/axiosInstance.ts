@@ -1,23 +1,26 @@
 import axios from 'axios';
 
-export const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:3000' : ''),
+const BASE = import.meta.env.VITE_API_URL ?? '';
+
+const axiosApi = axios.create({
+    baseURL: BASE,
     withCredentials: true,
-    headers: {
-        'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
 });
 
-// Response interceptor for global error handling
-api.interceptors.response.use(
-    (response) => response,
-    (error) => {
-        if (error.response?.status === 401) {
-            // Handle unauthorized errors globally if needed
-            console.error('Unauthorized access');
-        }
-        return Promise.reject(error);
-    },
-);
+export { axiosApi };
+
+export interface ApiResponse<T = unknown> {
+    status: number;
+    data: T;
+}
+
+export const api = {
+    get: <T = unknown>(url: string): Promise<ApiResponse<T>> =>
+        axiosApi.get<T>(url).then((r) => ({ status: r.status, data: r.data })),
+
+    post: <T = unknown>(url: string, data?: unknown): Promise<ApiResponse<T>> =>
+        axiosApi.post<T>(url, data).then((r) => ({ status: r.status, data: r.data })),
+};
 
 export default api;

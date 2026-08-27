@@ -1,7 +1,6 @@
-const ALLOWED_ORIGINS = (Bun.env.CORS_ORIGIN || 'http://localhost:5173')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+const raw = Bun.env.ALLOWED_ORIGINS;
+if (!raw) throw new Error('ALLOWED_ORIGINS env var is not set');
+const ALLOWED_ORIGINS = raw.split(',').map((origin) => origin.trim()).filter(Boolean);
 
 const baseCorsHeaders = {
     'Access-Control-Allow-Credentials': 'true',

@@ -98,13 +98,37 @@ data: [{"id":1,"lat":12.34,"lng":56.78,"timestamp":1690000000000}]
 ### GET /auth/me
 
 - Purpose: Validate current session and return current user payload.
-- Success: `200` `{ "authenticated": true, "user": { ... } }`
-- Failure: `401` `{ "authenticated": false }`
+- Auth: Required (`sessionToken` cookie).
+- Success: `200` `{ "success": true, "authenticated": true, "user": { ... } }`
+- Failure: `401` `{ "success": false, "authenticated": false }`
 
 ### POST /auth/logout
 
 - Purpose: Clear auth cookie.
 - Success: `200` `{ "success": true }`
+
+### POST /driver/login
+
+- Purpose: Authenticate a driver and return a JWT bearer token.
+- Rate limit: 10 requests / 300 seconds per IP.
+- Request body:
+
+```json
+{ "email": "driver@example.com", "password": "s3cr3t123" }
+```
+
+- Success: `200` `{ "success": true, "token": "<jwt>", "driver": { "id", "username", "email" } }`
+- Errors:
+    - `400` validation failure
+    - `401` invalid credentials
+    - `429` rate limit exceeded
+
+### GET /driver/me
+
+- Purpose: Validate bearer token and return driver payload.
+- Auth: Required (`Authorization: Bearer <token>` header).
+- Success: `200` `{ "success": true, "authenticated": true, "driver": { ... } }`
+- Failure: `401` `{ "success": false, "authenticated": false }`
 
 ## Auth and Session Details
 
@@ -113,6 +137,8 @@ data: [{"id":1,"lat":12.34,"lng":56.78,"timestamp":1690000000000}]
 - Claims: `id`, `email`, `username`
 - TTL: controlled by `SESSION_MAX_AGE` (seconds)
 - Cookie flags: `HttpOnly`, `SameSite=Strict`, `Secure` in production
+- Driver token claims: `id`, `email`, `username`
+- Driver tokens are Bearer tokens, not cookies — intended for mobile (Flutter) clients.
 
 ## OTP Expiration
 
@@ -126,6 +152,7 @@ data: [{"id":1,"lat":12.34,"lng":56.78,"timestamp":1690000000000}]
 - `/auth/send-otp`: 5 requests / 300s
 - `/auth/register`: 20 requests / 300s
 - `/auth/login`: 10 requests / 300s
+- `/driver/login`: 10 requests / 300s
 
 ## Key Environment Variables
 

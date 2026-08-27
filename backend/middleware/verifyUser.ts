@@ -7,13 +7,13 @@ export const verifyUser = (handler: Function) => {
             const user = await decodeCookie(req);
 
             if (!user) {
-                return Response.json({ error: 'Not authorized' }, { status: 401 });
+                return Response.json({ success: false, error: 'Not authorized' }, { status: 401 });
             }
 
             return await handler(req);
         } catch (error) {
             console.error('Auth middleware error:', error);
-            return Response.json({ error: 'Authentication failed' }, { status: 500 });
+            return Response.json({ success: false, error: 'Authentication failed' }, { status: 500 });
         }
     };
 };

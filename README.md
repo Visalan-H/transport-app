@@ -111,15 +111,17 @@ bun run dev
 
 ```env
 SERVER_PORT=3000
-SECRET_KEY=your-super-secret-jwt-key-here
+JOSE_SECRET_KEY=your-super-secret-jwt-key-here
 SESSION_MAX_AGE=604800          # 7 days in seconds
-INTERVAL=5000                   # SSE broadcast interval (ms)
+SSE_INTERVAL=5000               # SSE broadcast interval (ms)
+UPDATE_API_KEY=your-internal-update-key
+ALLOWED_ORIGINS=http://localhost:5173,https://yourdomain.com
+OTP_EXPIRATION_MINUTES=15
+LOG_LEVEL=info
 
-# Email Configuration
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password
+# Email Configuration (Gmail app password)
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASS=your-app-password
 ```
 
 ### Frontend (`frontend/.env`)

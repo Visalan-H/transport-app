@@ -4,13 +4,19 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
 
-// https://vite.dev/config/
 export default defineConfig({
+    base: './',
     plugins: [
         react(),
         tailwindcss(),
         VitePWA({
+            strategies: 'injectManifest',
+            srcDir: 'src',
+            filename: 'sw.ts',
             registerType: 'autoUpdate',
+            injectManifest: {
+                globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+            },
             includeAssets: ['icon-192.png', 'icon-512.png'],
             manifest: {
                 name: 'Polaris - Saveetha Transport',
@@ -28,11 +34,20 @@ export default defineConfig({
                 ],
             },
         }),
-
     ],
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    map: ['maplibre-gl', 'react-map-gl/maplibre'],
+                    vendor: ['react', 'react-dom', 'react-router-dom'],
+                },
+            },
+        },
+    },
     resolve: {
         alias: {
             '@': path.resolve(__dirname, './src'),
         },
-    }
+    },
 });
