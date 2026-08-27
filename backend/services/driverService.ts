@@ -18,7 +18,26 @@ export const Driver = {
         return driver;
     },
 
+    async updatePassword(email: string, passwordHash: string) {
+        const updated = await db.update(drivers).set({ passwordHash }).where(eq(drivers.email, email)).returning();
+        return updated.length > 0;
+    },
+
+    /** Password hashes must never leave the server, so admin listings select explicitly. */
+    async listSafe() {
+        return db
+            .select({
+                id: drivers.id,
+                username: drivers.username,
+                email: drivers.email,
+                createdAt: drivers.createdAt,
+            })
+            .from(drivers)
+            .orderBy(drivers.username);
+    },
+
     async delete(email: string) {
-        await db.delete(drivers).where(eq(drivers.email, email));
+        const removed = await db.delete(drivers).where(eq(drivers.email, email)).returning();
+        return removed.length > 0;
     },
 };

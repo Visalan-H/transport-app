@@ -1,6 +1,7 @@
 import { authRoutes } from './routes/authRoutes';
 import { locationRoutes } from './routes/locationRoutes';
 import { driverRoutes } from './routes/driverRoutes';
+import { adminRoutes } from './routes/adminRoutes';
 import { handlePreflight, wrapRoutes } from './services/corsService';
 import { startOtpCleanupJob } from './jobs/otpCleanup';
 
@@ -13,6 +14,7 @@ Bun.serve({
         ...wrapRoutes(authRoutes),
         ...wrapRoutes(locationRoutes),
         ...wrapRoutes(driverRoutes),
+        ...wrapRoutes(adminRoutes),
     },
     fetch(req) {
         if (req.method === 'OPTIONS') return handlePreflight(req);

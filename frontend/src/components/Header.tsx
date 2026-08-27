@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { Sun, Moon, Menu, X, LogIn, UserPlus, LogOut, Download, Bus } from 'lucide-react';
+import { Sun, Moon, Menu, X, LogIn, UserPlus, LogOut, Download, Bus, Shield } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
 import { useClickOutside } from '../hooks/useClickOutside';
@@ -30,6 +30,7 @@ export function Header() {
     const isDriverRoute = location.pathname === '/driver';
     const isLoginRoute = location.pathname === '/login';
     const isSignupRoute = location.pathname === '/signup';
+    const isAdminRoute = location.pathname === '/admin';
     const themeIcon = theme === 'bright' ? <Moon size={20} /> : <Sun size={20} />;
     const mobileThemeIcon = theme === 'bright' ? <Moon size={18} /> : <Sun size={18} />;
     const mobileThemeLabel = theme === 'bright' ? 'Dark Mode' : 'Light Mode';
@@ -54,6 +55,19 @@ export function Header() {
                     <Bus size={18} />
                     <span>Driver</span>
                 </Link>
+                {user?.isAdmin && (
+                    <Link
+                        to="/admin"
+                        className={`flex items-center gap-2 px-3 py-1.5 text-sm transition-colors rounded-md ${
+                            isAdminRoute
+                                ? 'text-foreground bg-primary/10 hover:bg-primary/20'
+                                : 'text-foreground hover:text-primary'
+                        }`}
+                    >
+                        <Shield size={18} />
+                        <span>Admin</span>
+                    </Link>
+                )}
                 {canInstall && (
                     <button
                         onClick={install}
@@ -150,6 +164,19 @@ export function Header() {
                             <Bus size={18} />
                             <span>Driver</span>
                         </Link>
+
+                        {user?.isAdmin && (
+                            <Link
+                                to="/admin"
+                                onClick={closeMobileMenu}
+                                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground transition-colors ${
+                                    isAdminRoute ? 'bg-muted' : 'hover:bg-muted'
+                                }`}
+                            >
+                                <Shield size={18} />
+                                <span>Admin</span>
+                            </Link>
+                        )}
 
                         <div className="border-t border-border my-1" />
 

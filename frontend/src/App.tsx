@@ -6,7 +6,9 @@ import Signup from './pages/Signup';
 import { Header } from './components/Header';
 import ProtectedRoute from './components/guards/ProtectedRoute';
 import PublicRoute from './components/guards/PublicRoute';
+import AdminRoute from './components/guards/AdminRoute';
 import Driver from './pages/Driver';
+import Admin from './pages/Admin';
 
 function AppRoutes() {
     return (
@@ -28,6 +30,15 @@ function AppRoutes() {
                         <ProtectedRoute>
                             <Driver />
                         </ProtectedRoute>
+                    }
+                />
+
+                <Route
+                    path="/admin"
+                    element={
+                        <AdminRoute>
+                            <Admin />
+                        </AdminRoute>
                     }
                 />
 

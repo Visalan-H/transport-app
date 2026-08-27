@@ -2,7 +2,8 @@ import { User } from '../services/userService';
 import { Otp, isOtpExpired } from '../services/otpService';
 import { sendOtpEmail } from '../utils/sendOtp';
 import { generateAndSetCookie, clearCookie, decodeCookie } from '../services/cookieService';
-import { isEmailAllowed } from '../config/validEmails';
+import { AllowedEmail } from '../services/allowedEmailService';
+import { isAdmin } from '../config/admins';
 import { randomInt } from 'crypto';
 import type { BunRequest } from 'bun';
 import { validate } from '../utils/validate';
@@ -13,7 +14,7 @@ export const handleSendOtp = async (req: BunRequest) => {
     if (!result.ok) return result.response;
     const { email } = result.data;
 
-    if (!isEmailAllowed(email)) {
+    if (!(await AllowedEmail.has(email))) {
         return Response.json({ success: false, error: 'Email not authorized' }, { status: 403 });
     }
 
@@ -55,7 +56,10 @@ export const handleRegister = async (req: BunRequest) => {
     if (!user) return Response.json({ success: false, error: 'Registration failed' }, { status: 500 });
 
     await generateAndSetCookie(req, user.id, user.email, user.username);
-    return Response.json({ success: true, user: { id: user.id, username: user.username, email: user.email } });
+    return Response.json({
+        success: true,
+        user: { id: user.id, username: user.username, email: user.email, isAdmin: isAdmin(user.email) },
+    });
 };
 
 export const handleLogin = async (req: BunRequest) => {
@@ -70,13 +74,24 @@ export const handleLogin = async (req: BunRequest) => {
     if (!isValid) return Response.json({ success: false, error: 'Invalid credentials' }, { status: 401 });
 
     await generateAndSetCookie(req, user.id, user.email, user.username);
-    return Response.json({ success: true, user: { id: user.id, username: user.username, email: user.email } });
+    return Response.json({
+        success: true,
+        user: { id: user.id, username: user.username, email: user.email, isAdmin: isAdmin(user.email) },
+    });
 };
 
 export const handleGetMe = async (req: BunRequest) => {
     const user = await decodeCookie(req);
     if (!user) return Response.json({ success: false, authenticated: false }, { status: 401 });
-    return Response.json({ success: true, authenticated: true, user });
+    // isAdmin is derived from ADMIN_EMAILS on every call rather than baked into
+    // the JWT, so granting or revoking admin takes effect immediately instead of
+    // waiting for sessions to expire. The frontend uses it to decide what to
+    // show; the admin routes check it again server-side regardless.
+    return Response.json({
+        success: true,
+        authenticated: true,
+        user: { ...user, isAdmin: isAdmin(user.email as string) },
+    });
 };
 
 export const handleLogout = async (req: BunRequest) => {
