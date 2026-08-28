@@ -78,6 +78,14 @@ transport/
 docker compose up --build
 ```
 
+That starts the backend, batcher and frontend. The simulation is behind a `dev`
+profile so it can never put synthetic buses on a live map by accident -- add it
+only when you want fake traffic:
+
+```bash
+docker compose --profile dev up --build
+```
+
 ### Manual
 
 ```bash
