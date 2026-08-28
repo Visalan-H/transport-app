@@ -1,9 +1,8 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
-import { sql } from 'drizzle-orm';
+import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
-export const otps = sqliteTable('otps', {
-    id: integer('id').primaryKey({ autoIncrement: true }),
+export const otps = pgTable('otps', {
+    id: serial('id').primaryKey(),
     email: text('email').notNull(),
     otpHash: text('otp_hash').notNull(),
-    createdAt: text('created_at').default(sql`(datetime('now'))`),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 });
