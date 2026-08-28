@@ -1,9 +1,8 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
-import { sql } from 'drizzle-orm';
+import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
-export const allowedEmails = sqliteTable('allowed_emails', {
-    id: integer('id').primaryKey({ autoIncrement: true }),
+export const allowedEmails = pgTable('allowed_emails', {
+    id: serial('id').primaryKey(),
     email: text('email').notNull().unique(),
     addedBy: text('added_by'),
-    createdAt: text('created_at').default(sql`(datetime('now'))`),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 });

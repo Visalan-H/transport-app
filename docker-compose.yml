@@ -9,8 +9,6 @@ services:
             - '3000'
         env_file:
             - ./backend/.env
-        volumes:
-            - ./backend/db:/db
         cpus: 0.75
         mem_limit: 512m
         mem_reservation: 256m
