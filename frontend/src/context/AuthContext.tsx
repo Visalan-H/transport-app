@@ -5,6 +5,10 @@ interface User {
     id: string;
     username: string;
     email: string;
+    // Derived server-side from ADMIN_EMAILS on every auth response, so it
+    // reflects current config rather than whatever was true at signup. Gates UI
+    // only — every admin route re-checks it server-side.
+    isAdmin?: boolean;
 }
 
 interface AuthContextValue {
@@ -43,12 +47,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(() => {
         if (typeof window !== 'undefined') {
             const storedUser = localStorage.getItem('user:v1');
-                if (storedUser) {
-                    try {
-                        return JSON.parse(storedUser) as User;
-                    } catch {
-                        localStorage.removeItem('user:v1');
-                    }
+            if (storedUser) {
+                try {
+                    return JSON.parse(storedUser) as User;
+                } catch {
+                    localStorage.removeItem('user:v1');
+                }
             }
         }
         return null;

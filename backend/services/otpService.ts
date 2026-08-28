@@ -4,21 +4,18 @@ import { eq, lte } from 'drizzle-orm';
 
 const DEFAULT_OTP_EXPIRATION_MINUTES = 15;
 
-const parseSqliteTimestamp = (value: string) => {
-    // SQLite datetime('now') is typically YYYY-MM-DD HH:mm:ss (UTC-like), normalize to ISO.
-    return Date.parse(`${value.replace(' ', 'T')}Z`);
+const expirationMs = () => {
+    const minutes = Number(Bun.env.OTP_EXPIRATION_MINUTES || DEFAULT_OTP_EXPIRATION_MINUTES);
+    return minutes * 60 * 1000;
 };
 
-export const isOtpExpired = (createdAt: string | null | undefined): boolean => {
+export const isOtpExpired = (createdAt: Date | null | undefined): boolean => {
     if (!createdAt) return true;
 
-    const createdAtMs = parseSqliteTimestamp(createdAt);
+    const createdAtMs = createdAt.getTime();
     if (Number.isNaN(createdAtMs)) return true;
 
-    const expirationMinutes = Number(Bun.env.OTP_EXPIRATION_MINUTES || DEFAULT_OTP_EXPIRATION_MINUTES);
-    const expirationMs = expirationMinutes * 60 * 1000;
-
-    return Date.now() - createdAtMs > expirationMs;
+    return Date.now() - createdAtMs > expirationMs();
 };
 
 export const Otp = {
@@ -37,9 +34,13 @@ export const Otp = {
     },
 
     async deleteExpired() {
-        const expirationMinutes = Number(Bun.env.OTP_EXPIRATION_MINUTES);
-        const expirationTime = new Date(Date.now() - expirationMinutes * 60 * 1000);
-
-        await db.delete(otps).where(lte(otps.createdAt, expirationTime.toISOString()));
+        // created_at is a real timestamp column, so this is a timestamp
+        // comparison. It used to be TEXT compared against an ISO string, which
+        // differed in format ('2026-01-01 10:00:00' vs '2026-01-01T10:00:00Z')
+        // and so compared as strings byte by byte -- the space sorts before the
+        // 'T', making every OTP from the current day look expired and deleting
+        // valid codes out from under people mid-signup.
+        const cutoff = new Date(Date.now() - expirationMs());
+        await db.delete(otps).where(lte(otps.createdAt, cutoff));
     },
 };

@@ -22,7 +22,21 @@ export const User = {
         await db.update(users).set({ passwordHash: newPasswordHash }).where(eq(users.email, email));
     },
 
+    /** Password hashes must never leave the server, so admin listings select explicitly. */
+    async listSafe() {
+        return db
+            .select({
+                id: users.id,
+                username: users.username,
+                email: users.email,
+                createdAt: users.createdAt,
+            })
+            .from(users)
+            .orderBy(users.username);
+    },
+
     async delete(email: string) {
-        await db.delete(users).where(eq(users.email, email));
+        const removed = await db.delete(users).where(eq(users.email, email)).returning();
+        return removed.length > 0;
     },
 };
