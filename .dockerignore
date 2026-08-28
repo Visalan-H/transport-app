@@ -12,9 +12,6 @@
 **/.cache
 **/*.tsbuildinfo
 
-# Database
-backend/db
-
 # Environment files
 .env
 .env.*
