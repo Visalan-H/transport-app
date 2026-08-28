@@ -49,6 +49,13 @@ services:
         pids_limit: 128
 
     simulation:
+        # Generates synthetic bus traffic, so it must never run in production --
+        # it would put fake buses on the live map. Behind a profile rather than
+        # commented out or deleted on the server: the deployed box then runs the
+        # same file as everyone else, and a plain `docker compose up -d` cannot
+        # start it by accident. Start it locally with:
+        #   docker compose --profile dev up -d
+        profiles: ['dev']
         build:
             context: .
             dockerfile: simulation/Dockerfile
