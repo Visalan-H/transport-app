@@ -48,12 +48,10 @@ export const handleRegister = async (req: BunRequest) => {
 
     await Otp.delete(email);
 
-    const existing = await User.findByEmail(email);
-    if (existing) return Response.json({ success: false, error: 'Email already exists' }, { status: 400 });
-
     const passwordHash = await Bun.password.hash(password);
     const user = await User.create(username, email, passwordHash);
-    if (!user) return Response.json({ success: false, error: 'Registration failed' }, { status: 500 });
+    // create returns nothing only when the email is already registered.
+    if (!user) return Response.json({ success: false, error: 'Email already exists' }, { status: 400 });
 
     await generateAndSetCookie(req, user.id, user.email, user.username);
     return Response.json({

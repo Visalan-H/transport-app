@@ -65,7 +65,12 @@ await client`
 `;
 
 // OTP lookup and cleanup both scan by email/created_at on every signup attempt.
-await client`CREATE INDEX IF NOT EXISTS otps_email_idx ON otps (email)`;
+// One live OTP per email. Older rows are dropped first because a unique index
+// cannot be built over duplicates, and any duplicate here is a leftover from
+// when Otp.create was a non-atomic delete-then-insert.
+await client`DELETE FROM otps a USING otps b WHERE a.email = b.email AND a.id < b.id`;
+await client`CREATE UNIQUE INDEX IF NOT EXISTS otps_email_key ON otps (email)`;
+await client`DROP INDEX IF EXISTS otps_email_idx`;
 await client`CREATE INDEX IF NOT EXISTS otps_created_at_idx ON otps (created_at)`;
 
 // The signup allowlist used to be a hardcoded Set in config/validEmails.ts,
