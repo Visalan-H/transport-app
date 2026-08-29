@@ -101,10 +101,10 @@ sudo docker compose up -d
 The backend requires `NEON_POSTGRES_URI` and `ADMIN_EMAILS` in `backend/.env` --
 it throws at startup if either is missing.
 
-One-time setup: GHCR publishes packages as private even from a public repo, so
-after the first workflow run set all three packages to public (GitHub profile ->
-Packages -> package -> Package settings -> Change visibility). Otherwise
-`docker compose pull` on the server gets a 401 and the box needs a token.
+The three GHCR packages inherit this repo's public visibility, so the server
+pulls anonymously and needs no registry login. If a package ever shows up
+private (GitHub profile -> Packages -> package -> Package settings), a
+`docker compose pull` on the server fails with a 401 until it is made public.
 
 ### Manual
 
