@@ -86,6 +86,26 @@ only when you want fake traffic:
 docker compose --profile dev up --build
 ```
 
+### Production deploy
+
+GitHub Actions builds and publishes the backend, batcher and frontend images to
+GHCR on every push to `main`, so the server pulls prebuilt images instead of
+compiling them itself:
+
+```bash
+git pull
+sudo docker compose pull
+sudo docker compose up -d
+```
+
+The backend requires `NEON_POSTGRES_URI` and `ADMIN_EMAILS` in `backend/.env` --
+it throws at startup if either is missing.
+
+The three GHCR packages inherit this repo's public visibility, so the server
+pulls anonymously and needs no registry login. If a package ever shows up
+private (GitHub profile -> Packages -> package -> Package settings), a
+`docker compose pull` on the server fails with a 401 until it is made public.
+
 ### Manual
 
 ```bash

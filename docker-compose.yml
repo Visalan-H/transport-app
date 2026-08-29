@@ -1,5 +1,10 @@
 services:
     backend:
+        # Both image: and build: are present so `docker compose pull` (used on the
+        # production VM) fetches the prebuilt image from GHCR, while a plain
+        # `docker compose up --build` (used locally) still builds from source and
+        # tags the result with this same name.
+        image: ghcr.io/visalan-h/transport-app-backend:latest
         build:
             context: .
             dockerfile: backend/Dockerfile
@@ -15,6 +20,7 @@ services:
         pids_limit: 256
 
     batcher:
+        image: ghcr.io/visalan-h/transport-app-batcher:latest
         build:
             context: .
             dockerfile: batcher/Dockerfile
@@ -34,6 +40,7 @@ services:
         pids_limit: 192
 
     frontend:
+        image: ghcr.io/visalan-h/transport-app-frontend:latest
         build:
             context: .
             dockerfile: ./frontend/Dockerfile
