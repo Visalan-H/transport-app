@@ -13,8 +13,18 @@ export const User = {
         return user || null;
     },
 
+    /**
+     * Returns undefined when the email is already taken. The uniqueness check
+     * is the insert itself rather than a preceding SELECT: two signups racing
+     * on the same email both passed that check, and the loser then hit the
+     * unique constraint as an unhandled 500 instead of a clean rejection.
+     */
     async create(username: string, email: string, passwordHash: string) {
-        const [user] = await db.insert(users).values({ username, email, passwordHash }).returning();
+        const [user] = await db
+            .insert(users)
+            .values({ username, email, passwordHash })
+            .onConflictDoNothing({ target: users.email })
+            .returning();
         return user;
     },
 

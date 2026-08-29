@@ -19,9 +19,17 @@ export const isOtpExpired = (createdAt: Date | null | undefined): boolean => {
 };
 
 export const Otp = {
+    // One statement, not delete-then-insert. Two round trips to a hosted
+    // Postgres cost real latency, and between them a concurrent resend could
+    // leave two rows for one email -- after which findByEmail's unordered
+    // limit(1) could hand back the stale code and reject the one just emailed.
+    // createdAt is reset explicitly, otherwise a resend would inherit the
+    // original row's timestamp and expire on the old schedule.
     async create(email: string, otpHash: string) {
-        await db.delete(otps).where(eq(otps.email, email));
-        await db.insert(otps).values({ email, otpHash });
+        await db
+            .insert(otps)
+            .values({ email, otpHash })
+            .onConflictDoUpdate({ target: otps.email, set: { otpHash, createdAt: new Date() } });
     },
 
     async findByEmail(email: string) {
