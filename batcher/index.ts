@@ -46,30 +46,20 @@ const isValidGpsKey = (req: Request): boolean => {
     return req.headers.get('x-api-key') === GPS_API_KEY;
 };
 
+/**
+ * Bearer only, and only a driver token. There used to be a sessionToken-cookie fallback for the web
+ * driver page; that page is gone, and the fallback was worse than dead code — student sessions are
+ * signed with the same secret, so any logged-in student could have posted a fake position for any
+ * bus. Verifying the signature is therefore not sufficient on its own; the role claim is what
+ * separates a bus from a passenger.
+ */
 const isValidDriverJwt = async (req: Request): Promise<boolean> => {
     try {
-        let token: string | undefined;
-
-        // 1. Check Authorization: Bearer header (for native/mobile app)
         const authHeader = req.headers.get('authorization');
-        if (authHeader?.startsWith('Bearer ')) {
-            token = authHeader.slice(7);
-        }
+        if (!authHeader?.startsWith('Bearer ')) return false;
 
-        // 2. Fall back to session cookie (for web app)
-        if (!token) {
-            const cookie = req.headers.get('cookie') ?? '';
-            token = cookie
-                .split(';')
-                .find((c) => c.trim().startsWith('sessionToken='))
-                ?.split('=')[1]
-                ?.trim();
-        }
-
-        if (!token) return false;
-
-        await jwtVerify(token, JWT_SECRET, { algorithms: ['HS256'] });
-        return true;
+        const { payload } = await jwtVerify(authHeader.slice(7), JWT_SECRET, { algorithms: ['HS256'] });
+        return payload.role === 'driver';
     } catch {
         return false;
     }

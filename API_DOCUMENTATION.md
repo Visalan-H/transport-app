@@ -61,7 +61,7 @@ data: [{"id":1,"lat":12.34,"lng":56.78,"timestamp":1690000000000}]
 
 - Success: `200` `{ "success": true }`
 - Errors:
-    - `403` email not allowlisted
+    - `403` email not on the paid-transport allowlist (`ADMIN_EMAILS` addresses are exempt)
     - `500` mail failure
     - `429` rate limit exceeded
 
@@ -134,11 +134,16 @@ data: [{"id":1,"lat":12.34,"lng":56.78,"timestamp":1690000000000}]
 
 - Cookie name: `sessionToken`
 - Token type: JWT (HS256)
-- Claims: `id`, `email`, `username`
+- Claims: `id`, `email`, `username`, `role`
 - TTL: controlled by `SESSION_MAX_AGE` (seconds)
 - Cookie flags: `HttpOnly`, `SameSite=Strict`, `Secure` in production
-- Driver token claims: `id`, `email`, `username`
+- Driver token claims: `id`, `email`, `username`, `role`
 - Driver tokens are Bearer tokens, not cookies — intended for mobile (Flutter) clients.
+- `role` is `student` for session cookies and `driver` for `/driver/login` tokens. Both are signed
+  with the same `JOSE_SECRET_KEY`, so a valid signature alone does not establish which kind of token
+  it is — `verifyDriver` and the batcher's `/update` both require `role: 'driver'` explicitly.
+  A session cookie is readable from devtools, so without this a student could replay their own token
+  as a driver Bearer token and post a fake position for any bus.
 
 ## OTP Expiration
 

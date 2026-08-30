@@ -12,15 +12,24 @@ const cookieOptions = {
     maxAge: MAX_AGE,
 };
 
-export async function generateToken(userId: number, email: string, username: string): Promise<string> {
-    return new SignJWT({ id: userId, email, username })
+/**
+ * Student sessions and driver logins are both signed with JOSE_SECRET_KEY, so without a role claim
+ * the two are byte-for-byte indistinguishable — and a student can read their own sessionToken out of
+ * devtools and replay it as a driver Bearer token. The role is what lets the batcher tell a bus
+ * broadcasting its position from a passenger watching one. Callers must state it; there is no
+ * default, so a new call site cannot mint a driver token by omission.
+ */
+export type TokenRole = 'student' | 'driver';
+
+export async function generateToken(userId: number, email: string, username: string, role: TokenRole): Promise<string> {
+    return new SignJWT({ id: userId, email, username, role })
         .setProtectedHeader({ alg: 'HS256' })
         .setExpirationTime(`${MAX_AGE}s`)
         .sign(SECRET);
 }
 
 export async function generateAndSetCookie(req: BunRequest, userId: number, email: string, username: string) {
-    const token = await generateToken(userId, email, username);
+    const token = await generateToken(userId, email, username, 'student');
     req.cookies.set('sessionToken', token, cookieOptions);
 }
 
