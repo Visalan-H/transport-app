@@ -5,8 +5,8 @@ Batcher is the update aggregation service for Polaris.
 ## Responsibilities
 
 - Accept high-frequency plain-text bus updates.
-- Authenticate update source (`x-api-key` for GPS, JWT cookie for driver).
-- Apply source-priority rules (GPS precedence window).
+- Authenticate update source (driver Bearer JWT; `x-api-key` only if `SIM_API_KEY` is set).
+- Reject payloads whose numbers are malformed, out of range, or timestamped outside the accepted window.
 - Forward buffered updates to backend as `BusDetails[]` JSON.
 
 ## Run
@@ -21,7 +21,7 @@ bun dev
 - `BATCHER_PORT`
 - `TARGET_URL`
 - `INTERVAL`
-- `GPS_API_KEY`
+- `SIM_API_KEY` (optional; unset in production)
 - `JOSE_SECRET_KEY`
 - `LOG_LEVEL`
 

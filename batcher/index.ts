@@ -1,25 +1,27 @@
 import type { BusDetails, BusText } from '../types';
 import { jwtVerify } from 'jose';
 
-type SourceRecord = { source: 'gps' | 'driver'; lastSeen: number };
 type LogLevel = 'info' | 'debug' | 'warn' | 'error';
 
 const buffer: BusText[] = [];
-const sourceMap = new Map<string, SourceRecord>();
 
 const INTERVAL = parseInt(Bun.env.INTERVAL || '5000');
 const TARGET_URL = Bun.env.TARGET_URL || 'http://localhost:3000/update';
 const BATCHER_PORT = parseInt(Bun.env.BATCHER_PORT || '4000');
-const GPS_API_KEY = Bun.env.GPS_API_KEY!;
 const JOSE_SECRET_KEY = Bun.env.JOSE_SECRET_KEY!;
 const UPDATE_API_KEY = Bun.env.UPDATE_API_KEY!;
-const GPS_PRIORITY_WINDOW = 2 * 60 * 1000;
+/**
+ * Optional on purpose, and unset in production. There is no GPS hardware; the only sender that
+ * cannot authenticate as a driver is `simulation/`, which posts for a hundred buses at once and so
+ * could never hold a single driver's token. Leaving the variable unset removes the key path
+ * entirely rather than leaving a static credential that can move any bus on the map.
+ */
+const SIM_API_KEY = Bun.env.SIM_API_KEY;
 const LOG_LEVEL = (Bun.env.LOG_LEVEL || 'info').toLowerCase();
 const DEBUG_ENABLED = LOG_LEVEL === 'debug';
 
 let totalRequests = 0;
 
-if (!GPS_API_KEY) throw new Error('GPS_API_KEY is not set');
 if (!JOSE_SECRET_KEY) throw new Error('JOSE_SECRET_KEY is not set');
 if (!UPDATE_API_KEY) throw new Error('UPDATE_API_KEY is not set');
 
@@ -76,8 +78,9 @@ const isValidUpdate = (parts: string[]): boolean => {
     );
 };
 
-const isValidGpsKey = (req: Request): boolean => {
-    return req.headers.get('x-api-key') === GPS_API_KEY;
+const isValidSimKey = (req: Request): boolean => {
+    if (!SIM_API_KEY) return false;
+    return req.headers.get('x-api-key') === SIM_API_KEY;
 };
 
 /**
@@ -99,15 +102,6 @@ const isValidDriverJwt = async (req: Request): Promise<boolean> => {
     }
 };
 
-// ── Priority logic ──────────────────────────────────────────────
-
-const isDriverBlocked = (busId: string): boolean => {
-    const record = sourceMap.get(busId);
-    if (!record) return false;
-    if (record.source !== 'gps') return false;
-    return Date.now() - record.lastSeen < GPS_PRIORITY_WINDOW;
-};
-
 // ── Server ──────────────────────────────────────────────────────
 
 Bun.serve({
@@ -116,15 +110,15 @@ Bun.serve({
     routes: {
         '/update': {
             async POST(req: Request): Promise<Response> {
-                const gpsAuth = isValidGpsKey(req);
-                const driverAuth = gpsAuth ? false : await isValidDriverJwt(req);
+                const simAuth = isValidSimKey(req);
+                const driverAuth = simAuth ? false : await isValidDriverJwt(req);
 
-                if (!gpsAuth && !driverAuth) {
+                if (!simAuth && !driverAuth) {
                     log('warn', 'update_rejected_unauthorized');
                     return new Response('Unauthorized', { status: 401 });
                 }
 
-                const source = gpsAuth ? 'gps' : 'driver';
+                const source = simAuth ? 'sim' : 'driver';
                 const text = (await req.text()) as BusText;
                 const parts = text.split(',');
                 const busId = parts[0];
@@ -139,12 +133,6 @@ Bun.serve({
                     return new Response('Bad Request', { status: 400 });
                 }
 
-                if (source === 'driver' && isDriverBlocked(busId)) {
-                    log('debug', 'driver_update_dropped_due_to_gps_priority', { busId });
-                    return new Response('OK');
-                }
-
-                sourceMap.set(busId, { source, lastSeen: Date.now() });
                 buffer.push(text);
                 totalRequests++;
 
@@ -153,7 +141,6 @@ Bun.serve({
                         totalRequests,
                         source,
                         bufferSize: buffer.length,
-                        trackedSources: sourceMap.size,
                     });
                 }
                 return new Response('OK');
@@ -167,7 +154,6 @@ Bun.serve({
                         status: 'OK',
                         buffer: buffer.length,
                         totalRequests,
-                        activeSources: Object.fromEntries(sourceMap),
                     }),
                 );
             },

@@ -55,11 +55,11 @@ transport/
 
 ### Batcher
 
-- Accepts driver and GPS updates on `POST /update`.
+- Accepts driver updates on `POST /update`.
 - Request must authenticate as either:
-    - GPS sender via `x-api-key`
-    - Driver sender via valid `sessionToken` JWT
-- Applies GPS priority window before accepting conflicting driver updates.
+    - Driver sender via `Authorization: Bearer <jwt>` carrying `role: 'driver'`
+    - Simulation sender via `x-api-key`, and only when `SIM_API_KEY` is set (it is not, in production)
+- Rejects payloads that are not four finite, in-range numbers, or whose timestamp is far from now.
 - Forwards buffered updates to backend `TARGET_URL` every `INTERVAL`.
 
 ## Security Summary
