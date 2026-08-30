@@ -19,25 +19,33 @@ const getLimiter = ({ points, duration }: RateLimitOptions) => {
 };
 
 /**
- * Only headers our own nginx writes are trusted here.
+ * Only headers written by a proxy we control are trusted here, and the order matters.
  *
- * X-Real-IP is set with `proxy_set_header X-Real-IP $remote_addr`, which replaces whatever the
- * client sent, so it cannot be forged from outside. X-Forwarded-For is set with
- * `$proxy_add_x_forwarded_for`, which *appends* the real peer to the client's own value — the
- * last entry is nginx's, every earlier one is attacker-controlled. Reading the first entry, as
- * this used to, let anyone rotate `X-Forwarded-For: <anything>` per request and get a fresh
- * bucket every time, which is to say no rate limiting at all on OTP or login.
+ * Cloudflare proxies this origin, so it sets CF-Connecting-IP to the real client and overwrites
+ * any value the client tried to send. That is the only header carrying per-user granularity:
+ * nginx's X-Real-IP is `$remote_addr`, which behind Cloudflare is the *edge* address, so keying
+ * on it would lump everyone behind one edge into a single bucket.
  *
- * Falling back to a single shared bucket rather than a per-request one is deliberate: if these
- * headers are ever missing the failure should be over-limiting, never under-limiting.
+ * X-Forwarded-For is deliberately not used. nginx sets it with `$proxy_add_x_forwarded_for`,
+ * which appends the peer to whatever the client sent, so its first entry is attacker-controlled
+ * — reading that entry, as this once did, let anyone rotate the header per request for a fresh
+ * bucket every time, i.e. no limit at all on OTP or login. Its last entry is trustworthy but is
+ * only the edge, and the real client's position depends on a hop count that changes if the proxy
+ * chain does.
+ *
+ * This holds only while the origin cannot be reached directly: anything that bypasses Cloudflare
+ * can forge CF-Connecting-IP freely. The origin firewall must therefore accept traffic only from
+ * Cloudflare's ranges (or the origin should be published solely through a tunnel).
+ *
+ * Falling back to one shared bucket rather than a per-request one is deliberate — if the headers
+ * are ever missing, the failure should be over-limiting, never under-limiting.
  */
 const getClientId = (req: BunRequest): string => {
-    const realIp = req.headers.get('x-real-ip')?.trim();
-    if (realIp) return realIp;
+    const cfIp = req.headers.get('cf-connecting-ip')?.trim();
+    if (cfIp) return cfIp;
 
-    const forwarded = req.headers.get('x-forwarded-for');
-    const lastHop = forwarded?.split(',').pop()?.trim();
-    return lastHop || 'unknown';
+    const realIp = req.headers.get('x-real-ip')?.trim();
+    return realIp || 'unknown';
 };
 
 export const withRateLimit = (handler: Function, options: RateLimitOptions = { points: 80, duration: 60 }) => {
