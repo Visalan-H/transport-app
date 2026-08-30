@@ -77,11 +77,11 @@ export const handleCreateDriver = async (req: BunRequest) => {
     if (!result.ok) return result.response;
     const { email, username, password } = result.data;
 
-    const existing = await Driver.findByEmail(email.toLowerCase());
-    if (existing) return Response.json({ success: false, error: 'A driver with that email exists' }, { status: 409 });
-
     const passwordHash = await Bun.password.hash(password);
     const driver = await Driver.create(username, email.toLowerCase(), passwordHash);
+    // create returns nothing only when the email is already registered. Asking first and inserting
+    // second would let two concurrent admins both pass the check and one hit a unique violation.
+    if (!driver) return Response.json({ success: false, error: 'A driver with that email exists' }, { status: 409 });
 
     return Response.json({
         success: true,
