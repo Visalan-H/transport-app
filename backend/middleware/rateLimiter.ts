@@ -18,11 +18,26 @@ const getLimiter = ({ points, duration }: RateLimitOptions) => {
     return limiter;
 };
 
+/**
+ * Only headers our own nginx writes are trusted here.
+ *
+ * X-Real-IP is set with `proxy_set_header X-Real-IP $remote_addr`, which replaces whatever the
+ * client sent, so it cannot be forged from outside. X-Forwarded-For is set with
+ * `$proxy_add_x_forwarded_for`, which *appends* the real peer to the client's own value — the
+ * last entry is nginx's, every earlier one is attacker-controlled. Reading the first entry, as
+ * this used to, let anyone rotate `X-Forwarded-For: <anything>` per request and get a fresh
+ * bucket every time, which is to say no rate limiting at all on OTP or login.
+ *
+ * Falling back to a single shared bucket rather than a per-request one is deliberate: if these
+ * headers are ever missing the failure should be over-limiting, never under-limiting.
+ */
 const getClientId = (req: BunRequest): string => {
-    const forwarded = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-    const cfIp = req.headers.get('cf-connecting-ip')?.trim();
     const realIp = req.headers.get('x-real-ip')?.trim();
-    return forwarded ?? cfIp ?? realIp ?? 'unknown';
+    if (realIp) return realIp;
+
+    const forwarded = req.headers.get('x-forwarded-for');
+    const lastHop = forwarded?.split(',').pop()?.trim();
+    return lastHop || 'unknown';
 };
 
 export const withRateLimit = (handler: Function, options: RateLimitOptions = { points: 80, duration: 60 }) => {
