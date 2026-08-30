@@ -4,19 +4,53 @@ on:
     push:
         branches:
             - main
+    # Checks only -- the build job is gated on the event being a push, so a PR
+    # gets its types and lint verified without publishing anything to GHCR.
+    pull_request:
     workflow_dispatch:
 
 env:
     REGISTRY: ghcr.io
 
 # Two pushes to main in quick succession would otherwise race, and whichever
-# finished last would win the :latest tag regardless of commit order.
+# finished last would win the :latest tag regardless of commit order. Keyed by
+# ref so a pull request run cannot cancel the main branch's build.
 concurrency:
-    group: build-images
+    group: build-images-${{ github.ref }}
     cancel-in-progress: true
 
 jobs:
+    # Bun strips types without checking them and no Dockerfile runs tsc, so
+    # without this a type error would sail into a published image. Gating the
+    # build on it costs ~30s and is the only thing standing between a broken
+    # commit and the :latest tag the VM pulls.
+    checks:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Set up Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: latest
+
+            - name: Typecheck backend
+              working-directory: backend
+              run: bun install --frozen-lockfile && bun run typecheck
+
+            - name: Typecheck batcher
+              working-directory: batcher
+              run: bun install --frozen-lockfile && bun run typecheck
+
+            - name: Typecheck and lint frontend
+              working-directory: frontend
+              run: bun install --frozen-lockfile && bun run typecheck && bun run lint
+
     build-and-push:
+        needs: checks
+        # Pull requests stop at checks; only a push to main publishes images.
+        if: github.event_name != 'pull_request'
         runs-on: ubuntu-latest
         permissions:
             contents: read

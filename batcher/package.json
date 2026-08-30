@@ -3,6 +3,7 @@
     "private": true,
     "scripts": {
         "dev": "bun run --watch index.ts",
+        "typecheck": "tsc --noEmit",
         "format": "bun prettier --write ."
     },
     "devDependencies": {
