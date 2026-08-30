@@ -17,7 +17,7 @@ Polaris is a real-time bus tracking platform for Saveetha transport operations.
 | Backend    | Auth, SSE stream, bus state store, OTP + users                                  |
 | Batcher    | Receives frequent updates, enforces source auth/priority, forwards batched JSON |
 | Simulation | Generates synthetic bus updates for testing                                     |
-| Postgres   | Stores users, drivers, signup allowlist + OTP hashes (hosted, not on the VM)    |
+| Postgres   | Stores users, drivers, paid-transport list + OTP hashes (hosted, not on the VM) |
 
 ## Current Project Layout
 

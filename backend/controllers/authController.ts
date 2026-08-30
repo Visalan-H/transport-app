@@ -14,7 +14,11 @@ export const handleSendOtp = async (req: BunRequest) => {
     if (!result.ok) return result.response;
     const { email } = result.data;
 
-    if (!(await AllowedEmail.has(email))) {
+    // ADMIN_EMAILS operators are exempt from the paid-transport allowlist: they
+    // are not students riding a bus, and gating them on it would deadlock
+    // bootstrap on an empty database — no one could reach /admin to add the
+    // first allowed email without already having an account.
+    if (!isAdmin(email) && !(await AllowedEmail.has(email))) {
         return Response.json({ success: false, error: 'Email not authorized' }, { status: 403 });
     }
 

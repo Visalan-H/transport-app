@@ -3,8 +3,11 @@ import { allowedEmails } from '../models/allowedEmail';
 import { eq } from 'drizzle-orm';
 
 /**
- * The signup allowlist. Addresses are stored and compared lowercased, so
- * casing in an invite never causes a confusing "Email not authorized".
+ * Students who have paid for the transport facility. Being on this list is
+ * what entitles an address to create an account and track a bus — it has
+ * nothing to do with who administers the system (see config/admins.ts).
+ * Addresses are stored and compared lowercased, so casing in how an address
+ * was entered never causes a confusing "Email not authorized".
  */
 export const AllowedEmail = {
     async list() {
