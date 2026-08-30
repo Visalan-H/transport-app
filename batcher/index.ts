@@ -42,6 +42,40 @@ const log = (level: LogLevel, event: string, meta?: Record<string, unknown>) => 
 
 // ── Auth helpers ────────────────────────────────────────────────
 
+/**
+ * Downstream, an update is kept only if its timestamp beats the one already stored, so a single
+ * far-future value pins that bus at those coordinates permanently — no later real fix can ever win
+ * the comparison, and nothing short of a backend restart clears it. Validating here keeps the bad
+ * value out of the buffer entirely rather than letting it become someone else's problem.
+ *
+ * The future allowance is for driver phones with a drifting clock; the past bound only exists to
+ * reject obvious garbage (an empty field parses to 0, i.e. 1970).
+ */
+const MAX_CLOCK_SKEW = 2 * 60 * 1000;
+const MAX_AGE = 24 * 60 * 60 * 1000;
+
+const isValidUpdate = (parts: string[]): boolean => {
+    if (parts.length !== 4) return false;
+
+    const [id, lat, lng, timestamp] = parts.map(Number) as [number, number, number, number];
+    const now = Date.now();
+
+    // Number.isFinite, not typeof === 'number': Number('abc') is NaN, and NaN is a number.
+    return (
+        Number.isInteger(id) &&
+        id > 0 &&
+        Number.isFinite(lat) &&
+        lat >= -90 &&
+        lat <= 90 &&
+        Number.isFinite(lng) &&
+        lng >= -180 &&
+        lng <= 180 &&
+        Number.isFinite(timestamp) &&
+        timestamp <= now + MAX_CLOCK_SKEW &&
+        timestamp >= now - MAX_AGE
+    );
+};
+
 const isValidGpsKey = (req: Request): boolean => {
     return req.headers.get('x-api-key') === GPS_API_KEY;
 };
@@ -92,10 +126,16 @@ Bun.serve({
 
                 const source = gpsAuth ? 'gps' : 'driver';
                 const text = (await req.text()) as BusText;
-                const busId = text.split(',')[0];
+                const parts = text.split(',');
+                const busId = parts[0];
 
                 if (!busId) {
                     log('warn', 'update_rejected_bad_request', { reason: 'missing_bus_id' });
+                    return new Response('Bad Request', { status: 400 });
+                }
+
+                if (!isValidUpdate(parts)) {
+                    log('warn', 'update_rejected_bad_request', { reason: 'invalid_payload', busId, source });
                     return new Response('Bad Request', { status: 400 });
                 }
 
