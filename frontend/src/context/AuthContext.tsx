@@ -24,7 +24,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const storedUser = localStorage.getItem('user:v1');
             if (storedUser) {
                 try {
-                    return JSON.parse(storedUser) as User;
+                    // isAdmin is user-editable in localStorage, so it's dropped here and
+                    // only trusted once /auth/me (or login/register) confirms it server-side.
+                    const parsed = JSON.parse(storedUser) as User;
+                    return { ...parsed, isAdmin: false };
                 } catch {
                     localStorage.removeItem('user:v1');
                 }
