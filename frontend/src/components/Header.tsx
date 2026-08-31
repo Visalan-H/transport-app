@@ -1,14 +1,14 @@
 import { useCallback, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
-import { Sun, Moon, Menu, X, LogIn, UserPlus, LogOut, Download, Bus, Shield } from 'lucide-react';
+import { Sun, Moon, Menu, X, LogIn, UserPlus, LogOut, Download, Shield } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
 import { useClickOutside } from '../hooks/useClickOutside';
 
 export function Header() {
     const { theme, toggleTheme } = useTheme();
-    const { user, logout } = useAuth();
+    const { user, loading, logout } = useAuth();
     const { canInstall, install } = useInstallPrompt();
     const navigate = useNavigate();
     const location = useLocation();
@@ -27,7 +27,6 @@ export function Header() {
         navigate('/');
     };
 
-    const isDriverRoute = location.pathname === '/driver';
     const isLoginRoute = location.pathname === '/login';
     const isSignupRoute = location.pathname === '/signup';
     const isAdminRoute = location.pathname === '/admin';
@@ -44,18 +43,7 @@ export function Header() {
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-4">
-                <Link
-                    to="/driver"
-                    className={`flex items-center gap-2 px-3 py-1.5 text-sm transition-colors rounded-md ${
-                        isDriverRoute
-                            ? 'text-foreground bg-primary/10 hover:bg-primary/20'
-                            : 'text-foreground hover:text-primary'
-                    }`}
-                >
-                    <Bus size={18} />
-                    <span>Driver</span>
-                </Link>
-                {user?.isAdmin && (
+                {!loading && user?.isAdmin && (
                     <Link
                         to="/admin"
                         className={`flex items-center gap-2 px-3 py-1.5 text-sm transition-colors rounded-md ${
@@ -154,18 +142,7 @@ export function Header() {
                             <span>{mobileThemeLabel}</span>
                         </button>
 
-                        <Link
-                            to="/driver"
-                            onClick={closeMobileMenu}
-                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground transition-colors ${
-                                isDriverRoute ? 'bg-muted' : 'hover:bg-muted'
-                            }`}
-                        >
-                            <Bus size={18} />
-                            <span>Driver</span>
-                        </Link>
-
-                        {user?.isAdmin && (
+                        {!loading && user?.isAdmin && (
                             <Link
                                 to="/admin"
                                 onClick={closeMobileMenu}

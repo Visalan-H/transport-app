@@ -15,8 +15,12 @@ export const handleDriverLogin = async (req: BunRequest) => {
     const isValid = await Bun.password.verify(password, driver.passwordHash);
     if (!isValid) return Response.json({ success: false, error: 'Invalid credentials' }, { status: 401 });
 
-    const token = await generateToken(driver.id, driver.email, driver.username);
-    return Response.json({ success: true, token, driver: { id: driver.id, username: driver.username, email: driver.email } });
+    const token = await generateToken(driver.id, driver.email, driver.username, 'driver');
+    return Response.json({
+        success: true,
+        token,
+        driver: { id: driver.id, username: driver.username, email: driver.email },
+    });
 };
 
 export const handleDriverGetMe = async (req: BunRequest) => {

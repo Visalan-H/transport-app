@@ -2,13 +2,14 @@ import axios from 'axios';
 
 const BASE = import.meta.env.VITE_API_URL ?? '';
 
+// Not exported: the driver page was the only consumer needing the raw client
+// (for a non-JSON text/plain body), and it's gone now that the Flutter app
+// replaced it. Everything else goes through the typed `api` wrapper below.
 const axiosApi = axios.create({
     baseURL: BASE,
     withCredentials: true,
     headers: { 'Content-Type': 'application/json' },
 });
-
-export { axiosApi };
 
 export interface ApiResponse<T = unknown> {
     status: number;
