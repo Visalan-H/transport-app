@@ -5,6 +5,7 @@
     "private": true,
     "scripts": {
         "dev": "bun --watch server.ts",
+        "typecheck": "tsc --noEmit",
         "sim": "bun ../simulation/sim.ts",
         "batch": "cd ../batcher && bun dev",
         "vite": "cd ../frontend && bun dev",

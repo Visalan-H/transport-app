@@ -13,8 +13,14 @@ export const Driver = {
         return driver || null;
     },
 
+    /** Returns undefined when the email is already taken — the unique index is the check, not a
+     * preceding lookup, so two concurrent creates cannot both decide the driver is new. */
     async create(username: string, email: string, passwordHash: string) {
-        const [driver] = await db.insert(drivers).values({ username, email, passwordHash }).returning();
+        const [driver] = await db
+            .insert(drivers)
+            .values({ username, email, passwordHash })
+            .onConflictDoNothing({ target: drivers.email })
+            .returning();
         return driver;
     },
 

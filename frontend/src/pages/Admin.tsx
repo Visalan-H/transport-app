@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { adminApi, type AllowedEmail, type Person } from '@/utils/adminApi';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { Loader2, Plus, Trash2, KeyRound, Copy, Check, MailCheck, Users, Bus, RefreshCw } from 'lucide-react';
 
 type Tab = 'invites' | 'students' | 'drivers';

@@ -1,4 +1,4 @@
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { LoadingSpinner } from '../LoadingSpinner';
 import { Navigate } from 'react-router-dom';
 

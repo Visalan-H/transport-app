@@ -3,7 +3,7 @@ import Map, { AttributionControl } from 'react-map-gl/maplibre';
 import type { MapLayerMouseEvent, MapRef } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { BusDetails } from '../../../types';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme } from '../hooks/useTheme';
 import { MemoizedLocate } from '@/constants/MemoizedLocate';
 import { BusLayer } from './map/BusLayer';
 import { BusPopup } from './map/BusPopup';

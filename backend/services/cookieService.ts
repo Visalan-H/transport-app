@@ -25,11 +25,9 @@ export async function generateAndSetCookie(req: BunRequest, userId: number, emai
 }
 
 export function clearCookie(req: BunRequest) {
-    req.cookies.delete('sessionToken', {
-        path: cookieOptions.path,
-        secure: cookieOptions.secure,
-        sameSite: cookieOptions.sameSite,
-    });
+    // Only path is passed: a cookie is identified by name/domain/path, so secure and sameSite play
+    // no part in matching the one to expire, and Bun's delete options accordingly do not accept them.
+    req.cookies.delete('sessionToken', { path: cookieOptions.path });
 }
 
 export async function decodeBearer(req: BunRequest) {

@@ -1,29 +1,6 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import api from '@/utils/axiosInstance';
-
-interface User {
-    id: string;
-    username: string;
-    email: string;
-    // Derived server-side from ADMIN_EMAILS on every auth response, so it
-    // reflects current config rather than whatever was true at signup. Gates UI
-    // only — every admin route re-checks it server-side.
-    isAdmin?: boolean;
-}
-
-interface AuthContextValue {
-    user: User | null;
-    loading: boolean;
-    sendOtp: (email: string) => Promise<{ ok: boolean; message?: string }>;
-    login: (email: string, password: string) => Promise<{ ok: boolean; message?: string }>;
-    register: (
-        username: string,
-        email: string,
-        password: string,
-        otp: string,
-    ) => Promise<{ ok: boolean; message?: string }>;
-    logout: () => Promise<{ ok: boolean; message?: string }>;
-}
+import { AuthContext, type User } from '@/hooks/useAuth';
 
 interface AuthResponse {
     success?: boolean;
@@ -38,8 +15,6 @@ interface ApiError {
     data?: AuthResponse;
     message?: string;
 }
-
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 const getErrMessage = (err: ApiError, fallback: string): string => err?.data?.error ?? err?.message ?? fallback;
 
@@ -137,10 +112,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             {children}
         </AuthContext.Provider>
     );
-}
-
-export function useAuth() {
-    const context = useContext(AuthContext);
-    if (!context) throw new Error('useAuth must be used within AuthProvider');
-    return context;
 }
