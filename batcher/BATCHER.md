@@ -16,10 +16,11 @@ This reduces the number of requests the main service must handle and allows send
     - Accepts a plain text body in the `BusText` format: `"{id},{lat},{lng},{timestamp}"` (e.g. `"1,12.34,56.78,1690000000000"`).
     - Each request appends the `BusText` string to an in-memory buffer and returns a plain text `OK` response.
     - Authentication is required:
-        - GPS source via `x-api-key` header matching `GPS_API_KEY`
-        - Driver source via valid `sessionToken` JWT cookie
+        - Driver source via `Authorization: Bearer <jwt>` carrying `role: 'driver'`
+        - Simulation source via `x-api-key` matching `SIM_API_KEY`, only when that variable is set
     - Returns `401 Unauthorized` when neither auth method is valid.
-    - Returns `400 Bad Request` when payload has no bus ID.
+    - Returns `400 Bad Request` when the payload is not four fields of finite, in-range numbers, or
+      when its timestamp is more than two minutes ahead or a day behind.
 
 - `GET /health`
     - Returns a JSON object summarizing the service status:
@@ -42,11 +43,6 @@ Example `GET /health` response:
     3. POSTs the JSON array `BusDetails[]` to `TARGET_URL`.
     4. If the forwarding `fetch` fails, the batch is requeued at the front of the buffer for retry.
 
-### Source priority
-
-- Batcher tracks last source per bus (`gps` or `driver`).
-- If GPS recently updated a bus (within `GPS_PRIORITY_WINDOW`, currently 2 minutes), incoming driver updates for that bus are dropped.
-
 ## Payload formats
 
 - BusText (single update, plain text body):
@@ -64,8 +60,10 @@ Example `GET /health` response:
 - `INTERVAL` — batching interval in milliseconds (default `5000`).
 - `TARGET_URL` — where batches are forwarded (default `http://localhost:3000/update`).
 - `BATCHER_PORT` — port the batcher listens on for incoming `POST /update` (default `4000`).
-- `GPS_API_KEY` — required API key for GPS update sources.
-- `JOSE_SECRET_KEY` — required to validate driver JWT cookies.
+- `SIM_API_KEY` — optional, and unset in production. When set, permits `x-api-key` senders; exists
+  only for `simulation/`, which posts for every bus at once and so cannot hold one driver's token.
+  Leaving it unset removes that auth path entirely rather than keeping a key that can move any bus.
+- `JOSE_SECRET_KEY` — required to validate driver Bearer JWTs.
 - `LOG_LEVEL` — `info` (default) or `debug`.
 
 Set these in the environment or in a process manager before starting the batcher.

@@ -10,6 +10,8 @@ const controllers = new Set<ReadableStreamDefaultController>();
 let totalRequests = 0;
 
 const SSE_INTERVAL = parseInt(Bun.env.SSE_INTERVAL || '5000');
+// Matches the batcher's allowance for driver phones with a drifting clock.
+const MAX_CLOCK_SKEW = 2 * 60 * 1000;
 const LOG_LEVEL = (Bun.env.LOG_LEVEL || 'info').toLowerCase();
 const DEBUG_ENABLED = LOG_LEVEL === 'debug';
 
@@ -61,8 +63,13 @@ export const handleUpdate = async (req: BunRequest) => {
     const data = (await req.json()) as BusDetails | BusDetails[];
     const updates = Array.isArray(data) ? data : [data];
 
+    // An update only ever wins by being newer, so a timestamp far enough ahead would pin its bus
+    // forever. The batcher rejects those at ingress; this is the same bound at the state itself, so
+    // the guarantee does not depend on the only current caller staying the only one.
+    const maxTimestamp = Date.now() + MAX_CLOCK_SKEW;
+
     for (const bus of updates) {
-        if (bus && isBus(bus)) {
+        if (bus && isBus(bus) && bus.timestamp <= maxTimestamp) {
             const prev = busLocations.get(bus.id);
             if (!prev || bus.timestamp > prev.timestamp) {
                 busLocations.set(bus.id, { lat: bus.lat, lng: bus.lng, timestamp: bus.timestamp });

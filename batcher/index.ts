@@ -1,25 +1,27 @@
 import type { BusDetails, BusText } from '../types';
 import { jwtVerify } from 'jose';
 
-type SourceRecord = { source: 'gps' | 'driver'; lastSeen: number };
 type LogLevel = 'info' | 'debug' | 'warn' | 'error';
 
 const buffer: BusText[] = [];
-const sourceMap = new Map<string, SourceRecord>();
 
 const INTERVAL = parseInt(Bun.env.INTERVAL || '5000');
 const TARGET_URL = Bun.env.TARGET_URL || 'http://localhost:3000/update';
 const BATCHER_PORT = parseInt(Bun.env.BATCHER_PORT || '4000');
-const GPS_API_KEY = Bun.env.GPS_API_KEY!;
 const JOSE_SECRET_KEY = Bun.env.JOSE_SECRET_KEY!;
 const UPDATE_API_KEY = Bun.env.UPDATE_API_KEY!;
-const GPS_PRIORITY_WINDOW = 2 * 60 * 1000;
+/**
+ * Optional on purpose, and unset in production. There is no GPS hardware; the only sender that
+ * cannot authenticate as a driver is `simulation/`, which posts for a hundred buses at once and so
+ * could never hold a single driver's token. Leaving the variable unset removes the key path
+ * entirely rather than leaving a static credential that can move any bus on the map.
+ */
+const SIM_API_KEY = Bun.env.SIM_API_KEY;
 const LOG_LEVEL = (Bun.env.LOG_LEVEL || 'info').toLowerCase();
 const DEBUG_ENABLED = LOG_LEVEL === 'debug';
 
 let totalRequests = 0;
 
-if (!GPS_API_KEY) throw new Error('GPS_API_KEY is not set');
 if (!JOSE_SECRET_KEY) throw new Error('JOSE_SECRET_KEY is not set');
 if (!UPDATE_API_KEY) throw new Error('UPDATE_API_KEY is not set');
 
@@ -42,8 +44,43 @@ const log = (level: LogLevel, event: string, meta?: Record<string, unknown>) => 
 
 // ── Auth helpers ────────────────────────────────────────────────
 
-const isValidGpsKey = (req: Request): boolean => {
-    return req.headers.get('x-api-key') === GPS_API_KEY;
+/**
+ * Downstream, an update is kept only if its timestamp beats the one already stored, so a single
+ * far-future value pins that bus at those coordinates permanently — no later real fix can ever win
+ * the comparison, and nothing short of a backend restart clears it. Validating here keeps the bad
+ * value out of the buffer entirely rather than letting it become someone else's problem.
+ *
+ * The future allowance is for driver phones with a drifting clock; the past bound only exists to
+ * reject obvious garbage (an empty field parses to 0, i.e. 1970).
+ */
+const MAX_CLOCK_SKEW = 2 * 60 * 1000;
+const MAX_AGE = 24 * 60 * 60 * 1000;
+
+const isValidUpdate = (parts: string[]): boolean => {
+    if (parts.length !== 4) return false;
+
+    const [id, lat, lng, timestamp] = parts.map(Number) as [number, number, number, number];
+    const now = Date.now();
+
+    // Number.isFinite, not typeof === 'number': Number('abc') is NaN, and NaN is a number.
+    return (
+        Number.isInteger(id) &&
+        id > 0 &&
+        Number.isFinite(lat) &&
+        lat >= -90 &&
+        lat <= 90 &&
+        Number.isFinite(lng) &&
+        lng >= -180 &&
+        lng <= 180 &&
+        Number.isFinite(timestamp) &&
+        timestamp <= now + MAX_CLOCK_SKEW &&
+        timestamp >= now - MAX_AGE
+    );
+};
+
+const isValidSimKey = (req: Request): boolean => {
+    if (!SIM_API_KEY) return false;
+    return req.headers.get('x-api-key') === SIM_API_KEY;
 };
 
 /**
@@ -65,15 +102,6 @@ const isValidDriverJwt = async (req: Request): Promise<boolean> => {
     }
 };
 
-// ── Priority logic ──────────────────────────────────────────────
-
-const isDriverBlocked = (busId: string): boolean => {
-    const record = sourceMap.get(busId);
-    if (!record) return false;
-    if (record.source !== 'gps') return false;
-    return Date.now() - record.lastSeen < GPS_PRIORITY_WINDOW;
-};
-
 // ── Server ──────────────────────────────────────────────────────
 
 Bun.serve({
@@ -82,29 +110,29 @@ Bun.serve({
     routes: {
         '/update': {
             async POST(req: Request): Promise<Response> {
-                const gpsAuth = isValidGpsKey(req);
-                const driverAuth = gpsAuth ? false : await isValidDriverJwt(req);
+                const simAuth = isValidSimKey(req);
+                const driverAuth = simAuth ? false : await isValidDriverJwt(req);
 
-                if (!gpsAuth && !driverAuth) {
+                if (!simAuth && !driverAuth) {
                     log('warn', 'update_rejected_unauthorized');
                     return new Response('Unauthorized', { status: 401 });
                 }
 
-                const source = gpsAuth ? 'gps' : 'driver';
+                const source = simAuth ? 'sim' : 'driver';
                 const text = (await req.text()) as BusText;
-                const busId = text.split(',')[0];
+                const parts = text.split(',');
+                const busId = parts[0];
 
                 if (!busId) {
                     log('warn', 'update_rejected_bad_request', { reason: 'missing_bus_id' });
                     return new Response('Bad Request', { status: 400 });
                 }
 
-                if (source === 'driver' && isDriverBlocked(busId)) {
-                    log('debug', 'driver_update_dropped_due_to_gps_priority', { busId });
-                    return new Response('OK');
+                if (!isValidUpdate(parts)) {
+                    log('warn', 'update_rejected_bad_request', { reason: 'invalid_payload', busId, source });
+                    return new Response('Bad Request', { status: 400 });
                 }
 
-                sourceMap.set(busId, { source, lastSeen: Date.now() });
                 buffer.push(text);
                 totalRequests++;
 
@@ -113,7 +141,6 @@ Bun.serve({
                         totalRequests,
                         source,
                         bufferSize: buffer.length,
-                        trackedSources: sourceMap.size,
                     });
                 }
                 return new Response('OK');
@@ -127,7 +154,6 @@ Bun.serve({
                         status: 'OK',
                         buffer: buffer.length,
                         totalRequests,
-                        activeSources: Object.fromEntries(sourceMap),
                     }),
                 );
             },

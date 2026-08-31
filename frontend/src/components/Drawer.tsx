@@ -57,7 +57,10 @@ export function AppDrawer({ nearbyBuses, isLoadingLocation, mapRef }: AppDrawerP
                                 className="w-full text-left p-3 border border-border rounded flex justify-between items-center cursor-pointer"
                             >
                                 <div>
-                                    <h3 className="font-semibold">{SEC_Bus_Routes[bus.id]}</h3>
+                                    {/* Falls back to the raw id for the same reason the map layer
+                                        does: an id with no route name still has to be identifiable,
+                                        and an empty heading reads as a broken row. */}
+                                    <h3 className="font-semibold">{SEC_Bus_Routes[bus.id] || bus.id}</h3>
                                     <p className="text-sm text-muted-foreground">
                                         {(bus.distance * 1000).toFixed(0)} m away
                                     </p>

@@ -3,9 +3,9 @@ import type { BusDetails, BusText } from '../types';
 const INTERVAL = 5000;
 const env = (globalThis as { Bun?: { env?: Record<string, string | undefined> } }).Bun?.env || {};
 const TARGET_URL = env.TARGET_URL || 'http://localhost:4000/update';
-const GPS_API_KEY = env.GPS_API_KEY;
+const SIM_API_KEY = env.SIM_API_KEY;
 
-if (!GPS_API_KEY) throw new Error('GPS_API_KEY is not set');
+if (!SIM_API_KEY) throw new Error('SIM_API_KEY is not set');
 
 let failedRequests = 0;
 
@@ -152,7 +152,7 @@ const simulateMovement = () => {
         const payload: BusText = `${bus.id},${bus.lat},${bus.lng},${bus.timestamp}`;
         fetch(TARGET_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain', 'x-api-key': GPS_API_KEY! },
+            headers: { 'Content-Type': 'text/plain', 'x-api-key': SIM_API_KEY! },
             body: payload,
         }).catch((error) => {
             failedRequests++;
