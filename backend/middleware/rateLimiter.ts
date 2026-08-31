@@ -37,8 +37,14 @@ const getLimiter = ({ points, duration }: RateLimitOptions) => {
  * fresh bucket every time, i.e. no limit at all on OTP or login. Its last entry is trustworthy
  * but the real client's position depends on a hop count that changes if the proxy chain does.
  *
- * The backend must therefore sit behind this nginx. Reachable directly, it sees no X-Real-IP at
- * all and falls back to the shared bucket below.
+ * All of this assumes the backend is only ever reached through that nginx, which is why its port
+ * is not published in docker-compose. Anything able to talk to it directly can set and rotate
+ * X-Real-IP itself, which defeats the limiter entirely — nginx overwriting the header is the only
+ * thing making it trustworthy.
+ *
+ * The origin firewall should still accept traffic only from Cloudflare's ranges (or publish the
+ * origin solely through a tunnel). nginx discarding forged headers means that is no longer the
+ * sole defence, but direct reachability remains worth closing on its own terms.
  *
  * Falling back to one shared bucket rather than a per-request one is deliberate — if the headers
  * are ever missing, the failure should be over-limiting, never under-limiting.
