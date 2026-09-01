@@ -59,7 +59,11 @@ export async function decodeCookie(req: BunRequest) {
     if (!token) return null;
 
     try {
-        const { payload } = await jwtVerify(token, SECRET);
+        // Pinned for the same reason as decodeBearer: every token this app
+        // mints, student or driver, is HS256, so there is nothing to gain from
+        // leaving the algorithm to jose's defaults and a JWT "none"/alg-confusion
+        // attempt to lose.
+        const { payload } = await jwtVerify(token, SECRET, { algorithms: ['HS256'] });
         return payload;
     } catch {
         return null;

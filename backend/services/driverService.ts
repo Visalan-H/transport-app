@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 
 export const Driver = {
     async findByEmail(email: string) {
-        const [driver] = await db.select().from(drivers).where(eq(drivers.email, email)).limit(1);
+        const [driver] = await db.select().from(drivers).where(eq(drivers.email, email.toLowerCase())).limit(1);
         return driver || null;
     },
 
@@ -14,18 +14,24 @@ export const Driver = {
     },
 
     /** Returns undefined when the email is already taken — the unique index is the check, not a
-     * preceding lookup, so two concurrent creates cannot both decide the driver is new. */
+     * preceding lookup, so two concurrent creates cannot both decide the driver is new.
+     * Lowercased here (not just at the Zod boundary) so scripts like seed-driver.ts, which build a
+     * driver straight from an env var with no validation, still land on the one canonical row. */
     async create(username: string, email: string, passwordHash: string) {
         const [driver] = await db
             .insert(drivers)
-            .values({ username, email, passwordHash })
+            .values({ username, email: email.toLowerCase(), passwordHash })
             .onConflictDoNothing({ target: drivers.email })
             .returning();
         return driver;
     },
 
     async updatePassword(email: string, passwordHash: string) {
-        const updated = await db.update(drivers).set({ passwordHash }).where(eq(drivers.email, email)).returning();
+        const updated = await db
+            .update(drivers)
+            .set({ passwordHash })
+            .where(eq(drivers.email, email.toLowerCase()))
+            .returning();
         return updated.length > 0;
     },
 
@@ -43,7 +49,7 @@ export const Driver = {
     },
 
     async delete(email: string) {
-        const removed = await db.delete(drivers).where(eq(drivers.email, email)).returning();
+        const removed = await db.delete(drivers).where(eq(drivers.email, email.toLowerCase())).returning();
         return removed.length > 0;
     },
 };

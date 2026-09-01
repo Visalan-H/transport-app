@@ -39,7 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     Future<void> _submit() async {
-        final email = _email.text.trim();
+        final email = _email.text.trim().toLowerCase();
         final password = _password.text;
         if (email.isEmpty || password.isEmpty) {
             setState(() => _error = widget.t.loginFailed);

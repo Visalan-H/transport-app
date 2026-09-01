@@ -26,7 +26,10 @@ import postgres from 'postgres';
 import { client as schemaClient } from '../config/db';
 
 const connectionString = process.env.NEON_POSTGRES_URI;
-const email = process.env.DRIVER_EMAIL;
+// Lowercased here because this script writes with raw postgres-js and never
+// goes through Zod or driverService — nothing else would normalize it before
+// it hits the unique index on email.
+const email = process.env.DRIVER_EMAIL?.toLowerCase();
 const username = process.env.DRIVER_USERNAME;
 const password = process.env.DRIVER_PASSWORD;
 
