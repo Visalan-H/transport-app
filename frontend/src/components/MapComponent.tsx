@@ -1,5 +1,7 @@
 import { useState, useMemo, memo, useCallback, useEffect, useRef } from 'react';
 import Map, { AttributionControl } from 'react-map-gl/maplibre';
+import { colorful, shadow } from '@versatiles/style';
+import type { StyleSpecification } from 'maplibre-gl';
 import type { MapLayerMouseEvent, MapRef } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { BusDetails } from '../../../types';
@@ -106,25 +108,40 @@ function useAutoCenterFirstBus({ mapRef, validBuses, hasUserMovedRef }: UseAutoC
     }, [hasUserMovedRef, mapRef, validBuses]);
 }
 
+// Map styles are generated here rather than fetched from tiles.versatiles.org/assets/styles/*.
+// Two reasons: the hosted presets are tuned for a general-purpose map and clash with this app's
+// monochrome palette (white / #282a37), and fetching one costs a ~168kB request before the map can
+// draw anything. Building them locally removes that request entirely.
+//
+// baseUrl is not optional in practice: the builder defaults it to document.location.origin in a
+// browser, which would point tiles, glyphs and sprites at our own domain instead of VersaTiles.
+const TILE_HOST = 'https://tiles.versatiles.org';
+
+// Both styles are recoloured rather than used as shipped: the presets are tuned for a general
+// purpose map and read as too saturated next to a UI that is white and #282a37 and nothing else.
+//
+// Desaturating fully was the first attempt and it was wrong -- colour is what separates water from
+// parks from road classes, so removing all of it flattened the map into one grey mass. These keep
+// enough to preserve that hierarchy and raise contrast to compensate for what was taken out.
+const BRIGHT_MAP_STYLE = colorful({
+    baseUrl: TILE_HOST,
+    recolor: { saturate: -0.65, contrast: 1.3 },
+}) as StyleSpecification;
+
+// Blended toward the app background so the map reads as part of the dark theme rather than a
+// separate panel sitting on top of it.
+const DARK_MAP_STYLE = shadow({
+    baseUrl: TILE_HOST,
+    recolor: { saturate: -0.8, blend: 0.4, blendColor: '#282a37', contrast: 1.6 },
+}) as StyleSpecification;
+
 export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapComponentProps) => {
     const { theme } = useTheme();
 
     const [selectedBus, setSelectedBus] = useState<BusDetails | null>(null);
     const hasUserMovedRef = useRef(false);
 
-    // VersaTiles rather than OpenFreeMap. Same terms -- free, no key, no request cap, commercial
-    // use allowed -- but tiles come back roughly 3x smaller (~2.4kB vs ~6.9kB measured at z12),
-    // which is the number that matters for students loading this on mobile data.
-    //
-    // Neither provider has a point of presence near Chennai, so both sit around 0.6-0.8s per tile;
-    // this swap buys bytes, not latency. Fixing latency means self-hosting a regional PMTiles
-    // extract behind Cloudflare, which is a much larger change.
-    //
-    // Other VersaTiles styles, if these two do not suit: graybeard, neutrino, shadow.
-    const mapStyle =
-        theme === 'dark'
-            ? 'https://tiles.versatiles.org/assets/styles/eclipse/style.json'
-            : 'https://tiles.versatiles.org/assets/styles/colorful/style.json';
+    const mapStyle = theme === 'dark' ? DARK_MAP_STYLE : BRIGHT_MAP_STYLE;
 
     const validBuses = useMemo(() => busLocations.filter((b) => b?.lat != null && b?.lng != null), [busLocations]);
     const busesById = useMemo(() => new globalThis.Map(validBuses.map((bus) => [bus.id, bus])), [validBuses]);
