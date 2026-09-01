@@ -1,8 +1,7 @@
 import type { BunRequest } from 'bun';
 import type { BusDetails } from '../../types';
 import { parseBusText } from '../utils/validations';
-
-type LogLevel = 'info' | 'debug' | 'warn';
+import { createLog } from '../utils/log';
 
 const busLocations = new Map<number, { lat: number; lng: number; timestamp: number }>();
 const controllers = new Set<ReadableStreamDefaultController>();
@@ -10,23 +9,8 @@ const controllers = new Set<ReadableStreamDefaultController>();
 let totalRequests = 0;
 
 const SSE_INTERVAL = parseInt(Bun.env.SSE_INTERVAL || '5000');
-const LOG_LEVEL = (Bun.env.LOG_LEVEL || 'info').toLowerCase();
-const DEBUG_ENABLED = LOG_LEVEL === 'debug';
 
-const log = (level: LogLevel, event: string, meta?: Record<string, unknown>) => {
-    if (level === 'debug' && !DEBUG_ENABLED) return;
-
-    const timestamp = new Date().toISOString();
-    const payload = meta && Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
-    const output = `[${timestamp}] [backend/location] [${level.toUpperCase()}] ${event}${payload}`;
-
-    if (level === 'warn') {
-        console.error(output);
-        return;
-    }
-
-    console.log(output);
-};
+const log = createLog('backend/location');
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 

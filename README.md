@@ -106,8 +106,12 @@ compiling them itself:
 ```bash
 git pull
 sudo docker compose pull
-sudo docker compose up -d
+sudo docker compose up -d --remove-orphans
 ```
+
+`--remove-orphans` matters whenever a service is deleted from the compose file:
+without it Docker leaves the old container running, since it no longer belongs
+to any service compose knows about. It is harmless to pass every time.
 
 The backend requires `NEON_POSTGRES_URI` and `ADMIN_EMAILS` in `backend/.env` --
 it throws at startup if either is missing.
@@ -184,6 +188,12 @@ SSE_INTERVAL=5000               # SSE broadcast interval (ms)
 ALLOWED_ORIGINS=http://localhost:5173,https://yourdomain.com
 OTP_EXPIRATION_MINUTES=15
 LOG_LEVEL=info
+
+# Optional, and deliberately unset in production. Enables the `x-api-key` path on
+# POST /update so `simulation/` can post for many buses at once, which it could
+# never do holding a single driver's token. Set it in BOTH backend/.env and
+# simulation/.env, to the same value, when you want synthetic traffic locally.
+# SIM_API_KEY=any-shared-local-value
 
 # Email Configuration (Gmail app password)
 EMAIL_USER=your-email@gmail.com

@@ -1,5 +1,6 @@
 import type { BunRequest } from 'bun';
 import { decodeBearer } from '../services/cookieService';
+import { createLog } from '../utils/log';
 
 /**
  * Optional on purpose, and unset in production. There is no GPS hardware; the only sender that
@@ -8,6 +9,8 @@ import { decodeBearer } from '../services/cookieService';
  * entirely rather than leaving a static credential that can move any bus on the map.
  */
 const SIM_API_KEY = Bun.env.SIM_API_KEY;
+
+const log = createLog('backend/location');
 
 const isValidSimKey = (req: BunRequest): boolean => {
     if (!SIM_API_KEY) return false;
@@ -31,6 +34,10 @@ export const verifyLocationSender = (handler: Function) => {
 
             const driver = await decodeBearer(req);
             if (!driver || driver.role !== 'driver') {
+                // Logged because the sender cannot see why it failed: the driver app treats any
+                // 401 as "token dead" and signs out, and sim.ts never inspects the status at all.
+                // Without this line an expired token or a key mismatch is silent on both ends.
+                log('warn', 'update_rejected_unauthorized', { reason: driver ? 'not_a_driver' : 'no_valid_token' });
                 return new Response('Unauthorized', { status: 401 });
             }
 
