@@ -15,7 +15,7 @@ const cookieOptions = {
 /**
  * Student sessions and driver logins are both signed with JOSE_SECRET_KEY, so without a role claim
  * the two are byte-for-byte indistinguishable — and a student can read their own sessionToken out of
- * devtools and replay it as a driver Bearer token. The role is what lets the batcher tell a bus
+ * devtools and replay it as a driver Bearer token. The role is what lets /update tell a bus
  * broadcasting its position from a passenger watching one. Callers must state it; there is no
  * default, so a new call site cannot mint a driver token by omission.
  */
@@ -45,7 +45,9 @@ export async function decodeBearer(req: BunRequest) {
     const token = authHeader.slice(7);
 
     try {
-        const { payload } = await jwtVerify(token, SECRET);
+        // Pinned rather than left to defaults: this is the one entry point a driver's phone
+        // authenticates on, and every token this app mints is HS256.
+        const { payload } = await jwtVerify(token, SECRET, { algorithms: ['HS256'] });
         return payload;
     } catch {
         return null;

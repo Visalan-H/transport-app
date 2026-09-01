@@ -16,15 +16,19 @@ unused Flutter scaffolding.
 The driver signs in, picks their bus once, and presses start. From then on the
 app pushes a location fix every 5 seconds until they press stop.
 
-Two services are involved, and they are not the same host in development:
+Both calls go to the backend:
 
-| Traffic          | Goes to | Endpoint         | Auth               |
-| ---------------- | ------- | ---------------- | ------------------ |
-| Sign-in          | backend | `POST /driver/login` | email + password |
-| Location updates | batcher | `POST /update`   | Bearer JWT, `role: 'driver'` |
+| Traffic          | Endpoint             | Auth                         |
+| ---------------- | -------------------- | ---------------------------- |
+| Sign-in          | `POST /driver/login` | email + password             |
+| Location updates | `POST /update`       | Bearer JWT, `role: 'driver'` |
 
-In production nginx fronts both on one origin and splits by path, so both base
-URLs are the same domain. See `lib/config.dart`.
+Location updates are plain text: `busId,lat,lng,timestampMillis`.
+
+`/update` used to be served by a separate batcher service on port 4000, which is
+why `lib/config.dart` still carries two base URLs. That service was removed — it
+held each fix for up to 5 seconds before passing it on, which only made the map
+lag. Both values now point at the same place.
 
 ### The foreground service
 
@@ -80,7 +84,7 @@ lib/
 ```bash
 flutter run -d <device-id> \
   --dart-define=AUTH_BASE_URL=http://10.0.2.2:3000 \
-  --dart-define=UPDATE_BASE_URL=http://10.0.2.2:4000
+  --dart-define=UPDATE_BASE_URL=http://10.0.2.2:3000
 ```
 
 `10.0.2.2` is the emulator's alias for the host's localhost. On a **physical
@@ -88,7 +92,7 @@ device over USB**, reverse-proxy the ports first — this does not survive a
 disconnect:
 
 ```bash
-adb reverse tcp:3000 tcp:3000 && adb reverse tcp:4000 tcp:4000
+adb reverse tcp:3000 tcp:3000
 ```
 
 ## Building a release

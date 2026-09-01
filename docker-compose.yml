@@ -19,26 +19,6 @@ services:
         mem_reservation: 256m
         pids_limit: 256
 
-    batcher:
-        image: ghcr.io/visalan-h/transport-app-batcher:latest
-        build:
-            context: .
-            dockerfile: batcher/Dockerfile
-        container_name: transport_batcher
-        restart: always
-        expose:
-            - '4000'
-        env_file:
-            - ./batcher/.env
-        environment:
-            - TARGET_URL=http://backend:3000/update
-        depends_on:
-            - backend
-        cpus: 0.5
-        mem_limit: 384m
-        mem_reservation: 128m
-        pids_limit: 192
-
     frontend:
         image: ghcr.io/visalan-h/transport-app-frontend:latest
         build:
@@ -70,10 +50,10 @@ services:
         env_file:
             - ./simulation/.env
         environment:
-            - TARGET_URL=http://batcher:4000/update
+            - TARGET_URL=http://backend:3000/update
         restart: on-failure
         depends_on:
-            - batcher
+            - backend
         cpus: 0.5
         mem_limit: 256m
         mem_reservation: 96m

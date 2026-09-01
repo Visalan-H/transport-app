@@ -2,7 +2,7 @@ import type { BusDetails, BusText } from '../types';
 
 const INTERVAL = 5000;
 const env = (globalThis as { Bun?: { env?: Record<string, string | undefined> } }).Bun?.env || {};
-const TARGET_URL = env.TARGET_URL || 'http://localhost:4000/update';
+const TARGET_URL = env.TARGET_URL || 'http://localhost:3000/update';
 const SIM_API_KEY = env.SIM_API_KEY;
 
 if (!SIM_API_KEY) throw new Error('SIM_API_KEY is not set');

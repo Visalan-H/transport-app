@@ -29,13 +29,22 @@
             "name": "/update",
             "request": {
                 "method": "POST",
-                "header": [],
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "text/plain"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{driverToken}}"
+                    }
+                ],
                 "body": {
                     "mode": "raw",
-                    "raw": "[{ \"id\": 1, \"lat\": 12.34, \"lng\": 56.78, \"timestamp\": 1690000000000 }, { \"id\": 2, \"lat\": 11.11, \"lng\": 22.22, \"timestamp\": 1690000001000 }]",
+                    "raw": "1,13.0827,80.2707,{{$timestamp}}000",
                     "options": {
                         "raw": {
-                            "language": "json"
+                            "language": "text"
                         }
                     }
                 },

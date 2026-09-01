@@ -60,7 +60,7 @@ class Api {
     }
 
     /// POST {updateBaseUrl}/update — plain text `busId,lat,lng,timestampMillis`.
-    /// This hits the BATCHER, not the backend. Response body is just "OK".
+    /// Response body is just "OK".
     static Future<SendResult> sendLocation({
         required String updateUrl,
         required String token,

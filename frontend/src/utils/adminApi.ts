@@ -7,9 +7,10 @@ import api from './axiosInstance';
  *   dev  — VITE_API_URL points straight at the backend, so /admin/* is direct.
  *   prod — one origin fronted by nginx, which has no /admin location and could
  *          not gain one: `location /admin` would prefix-match the SPA's own
- *          /admin page and serve JSON instead of the app. So admin calls ride
- *          the existing /api/ block, which proxies to the backend root and
- *          strips the prefix (/api/admin/x -> /admin/x).
+ *          /admin page and serve JSON instead of the app. So admin calls go
+ *          through nginx's `location /api/admin/`, which strips that prefix
+ *          (/api/admin/x -> /admin/x). Every path below therefore needs a
+ *          segment after the prefix; a bare /api/admin would not match.
  */
 const PREFIX = import.meta.env.VITE_API_URL ? '/admin' : '/api/admin';
 
