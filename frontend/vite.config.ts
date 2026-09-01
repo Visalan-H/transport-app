@@ -38,9 +38,27 @@ export default defineConfig({
     build: {
         rollupOptions: {
             output: {
-                manualChunks: {
-                    map: ['maplibre-gl', 'react-map-gl/maplibre'],
-                    vendor: ['react', 'react-dom', 'react-router-dom'],
+                // Function form, not the object form this used to use. With the object form
+                // (`{ vendor: ['react', 'react-dom', 'react-router-dom'] }`) React was not reaching
+                // the vendor chunk at all: builds put react-dom in the entry chunk and left vendor
+                // holding ~35kB of just the router, so every app-code change invalidated the whole
+                // ~300kB entry rather than the app's own share of it.
+                //
+                // Rollup documents the object form as matching inclusively, so this arguably should
+                // have worked -- but it measurably did not here, and matching on the resolved module
+                // path is the reliable approach. Confirmed by comparing real builds either side of
+                // the change: index 304kB -> 51kB, vendor 35kB -> 319kB, total JS unchanged.
+                manualChunks(id) {
+                    if (!id.includes('node_modules')) return;
+
+                    // Must come before the catch-all: react-map-gl is a dependency like any other
+                    // and would otherwise land in vendor, dragging the map bindings into the chunk
+                    // every page loads. Everything else third-party is stable enough to share one
+                    // long-lived chunk, which is the whole point -- app code changes on every
+                    // deploy, these do not.
+                    if (id.includes('maplibre-gl') || id.includes('react-map-gl')) return 'map';
+
+                    return 'vendor';
                 },
             },
         },
