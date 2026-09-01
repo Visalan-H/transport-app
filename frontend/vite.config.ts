@@ -38,9 +38,22 @@ export default defineConfig({
     build: {
         rollupOptions: {
             output: {
-                manualChunks: {
-                    map: ['maplibre-gl', 'react-map-gl/maplibre'],
-                    vendor: ['react', 'react-dom', 'react-router-dom'],
+                // Function form, not the object form this used to use. Object form matches a
+                // module only by its exact resolved id, so listing 'react'/'react-dom' never caught
+                // react/jsx-runtime or react-dom/client -- which is what React 19 actually pulls in.
+                // React therefore ended up fused into the entry chunk, and every app-code change
+                // invalidated all ~300kB of it instead of just the app's share.
+                manualChunks(id) {
+                    if (!id.includes('node_modules')) return;
+
+                    // Must come before the catch-all: react-map-gl is a dependency like any other
+                    // and would otherwise land in vendor, dragging the map bindings into the chunk
+                    // every page loads. Everything else third-party is stable enough to share one
+                    // long-lived chunk, which is the whole point -- app code changes on every
+                    // deploy, these do not.
+                    if (id.includes('maplibre-gl') || id.includes('react-map-gl')) return 'map';
+
+                    return 'vendor';
                 },
             },
         },
