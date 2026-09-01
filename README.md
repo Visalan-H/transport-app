@@ -119,6 +119,37 @@ to any service compose knows about. It is harmless to pass every time.
 The backend requires `NEON_POSTGRES_URI` and `ADMIN_EMAILS` in `backend/.env` --
 it throws at startup if either is missing.
 
+#### Origin TLS
+
+The frontend serves 443 with a **Cloudflare Origin CA certificate**, so Cloudflare's
+SSL/TLS mode can be **Full (strict)**. On Flexible -- the default, and what this ran
+on originally -- Cloudflare terminates TLS at the edge and then speaks plain HTTP to
+this origin across the public internet, so session cookies, driver passwords and
+driver JWTs travel in cleartext while the browser still shows a padlock. Full without
+`strict` encrypts that hop but accepts any certificate, including an attacker's.
+
+The certificate is not in the repo or the image -- the frontend image is public on
+GHCR, so a key inside it would be a published key. It is mounted from the server:
+
+```bash
+mkdir -p ~/polaris/certs
+# paste the certificate and private key from
+# Cloudflare -> SSL/TLS -> Origin Server -> Create Certificate
+nano ~/polaris/certs/origin.pem
+nano ~/polaris/certs/origin.key
+chmod 600 ~/polaris/certs/origin.key
+```
+
+Then set SSL/TLS -> Overview -> **Full (strict)** in the Cloudflare dashboard, and
+open 443 to Cloudflare's ranges in the Azure NSG. Port 80 can be closed once 443
+serves: Cloudflare connects to the origin on 443 under Full (strict), and browser
+HTTP is redirected at the edge by "Always Use HTTPS".
+
+Nothing is mounted locally, which is why `docker compose up --build` on a laptop
+still works: the container entrypoint writes a throwaway self-signed pair when the
+directory is empty. That certificate is worthless by design and Full (strict) will
+correctly refuse it, so it can never be mistaken for a production setup.
+
 The three GHCR packages inherit this repo's public visibility, so the server
 pulls anonymously and needs no registry login. If a package ever shows up
 private (GitHub profile -> Packages -> package -> Package settings), a
@@ -209,6 +240,15 @@ EMAIL_PASS=your-app-password
 ```env
 VITE_API_URL=http://localhost:3000
 ```
+
+### Origin certificate (`certs/`, server only)
+
+```text
+certs/origin.pem    Cloudflare Origin CA certificate
+certs/origin.key    its private key (chmod 600)
+```
+
+Gitignored. Absent locally -- see Origin TLS above.
 
 ---
 

@@ -28,6 +28,12 @@ services:
         restart: always
         ports:
             - '80:80'
+            - '443:443'
+        # The real Cloudflare Origin CA pair lives on the server as ./certs/origin.{pem,key} and is
+        # gitignored. Not read-only: when the directory is empty -- which is the normal case on a
+        # laptop -- the entrypoint writes a self-signed placeholder into it so nginx can start.
+        volumes:
+            - ./certs:/etc/nginx/certs
         depends_on:
             - backend
         cpus: 0.5
