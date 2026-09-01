@@ -112,10 +112,19 @@ export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapCom
     const [selectedBus, setSelectedBus] = useState<BusDetails | null>(null);
     const hasUserMovedRef = useRef(false);
 
+    // VersaTiles rather than OpenFreeMap. Same terms -- free, no key, no request cap, commercial
+    // use allowed -- but tiles come back roughly 3x smaller (~2.4kB vs ~6.9kB measured at z12),
+    // which is the number that matters for students loading this on mobile data.
+    //
+    // Neither provider has a point of presence near Chennai, so both sit around 0.6-0.8s per tile;
+    // this swap buys bytes, not latency. Fixing latency means self-hosting a regional PMTiles
+    // extract behind Cloudflare, which is a much larger change.
+    //
+    // Other VersaTiles styles, if these two do not suit: graybeard, neutrino, shadow.
     const mapStyle =
         theme === 'dark'
-            ? 'https://tiles.openfreemap.org/styles/dark'
-            : 'https://tiles.openfreemap.org/styles/positron';
+            ? 'https://tiles.versatiles.org/assets/styles/eclipse/style.json'
+            : 'https://tiles.versatiles.org/assets/styles/colorful/style.json';
 
     const validBuses = useMemo(() => busLocations.filter((b) => b?.lat != null && b?.lng != null), [busLocations]);
     const busesById = useMemo(() => new globalThis.Map(validBuses.map((bus) => [bus.id, bus])), [validBuses]);
