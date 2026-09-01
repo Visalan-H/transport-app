@@ -2,6 +2,13 @@ type BusIDMap = {
     [key: number]: string;
 };
 
+/**
+ * Source of truth for bus ID -> route name.
+ *
+ * `driver_app/lib/data/bus_routes.dart` is a verbatim port of this map. There is
+ * no shared source between TypeScript and Dart, so any edit here has to be made
+ * there too or the driver app will show a different route name than the map does.
+ */
 export const SEC_Bus_Routes: BusIDMap = {
     1: 'MMC 2A',
     2: 'Anna Nagar-II 15A',

@@ -6,7 +6,7 @@ Polaris is a real-time bus tracking platform for Saveetha transport operations.
 
 - Live map with SSE updates for all tracked buses.
 - Authenticated student access with OTP onboarding.
-- Driver update flow via batcher with source-priority handling.
+- Driver location updates buffered and batched before they reach the backend.
 - Lightweight architecture optimized for low operational cost.
 
 ## Architecture
@@ -15,7 +15,8 @@ Polaris is a real-time bus tracking platform for Saveetha transport operations.
 | ---------- | ------------------------------------------------------------------------------- |
 | Frontend   | React app, map UI, auth flows                                                   |
 | Backend    | Auth, SSE stream, bus state store, OTP + users                                  |
-| Batcher    | Receives frequent updates, enforces source auth/priority, forwards batched JSON |
+| Batcher    | Receives frequent updates, authenticates and validates them, forwards batched JSON |
+| Driver app | Native Android client drivers use to broadcast location (see `driver_app/`)     |
 | Simulation | Generates synthetic bus updates for testing                                     |
 | Postgres   | Stores users, drivers, paid-transport list + OTP hashes (hosted, not on the VM) |
 
@@ -38,6 +39,13 @@ transport/
     index.ts
   frontend/
     src/
+  driver_app/
+    lib/
+      data/
+      screens/
+      services/
+      widgets/
+    android/
   simulation/
     sim.ts
   types/
@@ -125,6 +133,35 @@ bun install
 bun run dev
 ```
 
+## Driver App (Android)
+
+Drivers use a native Android app, not the website. A browser stops broadcasting
+location the moment the phone locks, so the app runs the tracker in an Android
+foreground service instead.
+
+Builds are published on the [Releases page](https://github.com/Visalan-H/transport-app/releases).
+
+| Build         | Size   | Who it is for                                                      |
+| ------------- | ------ | ------------------------------------------------------------------ |
+| `arm64-v8a`   | ~17 MB | Every phone made in roughly the last decade. This is the download. |
+| `armeabi-v7a` | ~15 MB | Older 32-bit devices only.                                         |
+
+Only the `arm64-v8a` build is attached to releases. The 32-bit build is a
+fallback for hardware old enough that it is not worth carrying an extra asset
+for by default — if the arm64 APK refuses to install with a generic *App not
+installed* error, that is the case, and the 32-bit build can be produced from
+source:
+
+```bash
+cd driver_app
+flutter build apk --split-per-abi \
+  --dart-define=AUTH_BASE_URL=https://polaris.visalan.me \
+  --dart-define=UPDATE_BASE_URL=https://polaris.visalan.me
+```
+
+Both server addresses are baked in at build time, so moving the server means
+issuing a new APK.
+
 ## Operational Notes
 
 - Compose includes per-service CPU and memory limits.
@@ -135,7 +172,12 @@ bun run dev
 
 - API details: `API_DOCUMENTATION.md`
 - Batcher service details: `batcher/BATCHER.md`
+- Driver app details: `driver_app/README.md`
 - Frontend quick notes: `frontend/README.md`
+
+## Environment Variables
+
+### Backend (`backend/.env`)
 
 ```env
 SERVER_PORT=3000
@@ -174,10 +216,6 @@ INTERVAL=5000                   # Batch flush interval (ms)
 - [BATCHER.md](./batcher/BATCHER.md) — Deep dive into the batching service architecture
 
 ---
-
-## Built By
-
-**Sec TechSociety** — A real-time tracking solution for Saveetha Engineering College.
 
 ## License
 
