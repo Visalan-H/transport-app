@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 
 export const User = {
     async findByEmail(email: string) {
-        const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+        const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
         return user || null;
     },
 
@@ -18,18 +18,20 @@ export const User = {
      * is the insert itself rather than a preceding SELECT: two signups racing
      * on the same email both passed that check, and the loser then hit the
      * unique constraint as an unhandled 500 instead of a clean rejection.
+     * Lowercased here (not just at the Zod boundary) so this holds even for
+     * callers that bypass validation entirely.
      */
     async create(username: string, email: string, passwordHash: string) {
         const [user] = await db
             .insert(users)
-            .values({ username, email, passwordHash })
+            .values({ username, email: email.toLowerCase(), passwordHash })
             .onConflictDoNothing({ target: users.email })
             .returning();
         return user;
     },
 
     async updatePassword(email: string, newPasswordHash: string) {
-        await db.update(users).set({ passwordHash: newPasswordHash }).where(eq(users.email, email));
+        await db.update(users).set({ passwordHash: newPasswordHash }).where(eq(users.email, email.toLowerCase()));
     },
 
     /** Password hashes must never leave the server, so admin listings select explicitly. */
@@ -46,7 +48,7 @@ export const User = {
     },
 
     async delete(email: string) {
-        const removed = await db.delete(users).where(eq(users.email, email)).returning();
+        const removed = await db.delete(users).where(eq(users.email, email.toLowerCase())).returning();
         return removed.length > 0;
     },
 };

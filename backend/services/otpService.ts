@@ -28,17 +28,17 @@ export const Otp = {
     async create(email: string, otpHash: string) {
         await db
             .insert(otps)
-            .values({ email, otpHash })
+            .values({ email: email.toLowerCase(), otpHash })
             .onConflictDoUpdate({ target: otps.email, set: { otpHash, createdAt: new Date() } });
     },
 
     async findByEmail(email: string) {
-        const [otp] = await db.select().from(otps).where(eq(otps.email, email)).limit(1);
+        const [otp] = await db.select().from(otps).where(eq(otps.email, email.toLowerCase())).limit(1);
         return otp || null;
     },
 
     async delete(email: string) {
-        await db.delete(otps).where(eq(otps.email, email));
+        await db.delete(otps).where(eq(otps.email, email.toLowerCase()));
     },
 
     async deleteExpired() {

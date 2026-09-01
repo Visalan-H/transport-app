@@ -26,7 +26,7 @@ export const handleAddAllowedEmail = async (req: BunRequest) => {
 
     // Already present is a no-op, not a failure — an admin re-inviting someone
     // should see success, not a confusing error.
-    return Response.json({ success: true, added: Boolean(added), email: result.data.email.toLowerCase() });
+    return Response.json({ success: true, added: Boolean(added), email: result.data.email });
 };
 
 export const handleRemoveAllowedEmail = async (req: BunRequest) => {
@@ -52,9 +52,12 @@ export const handleRemoveUser = async (req: BunRequest) => {
     const result = await validate(emailOnlySchema, req);
     if (!result.ok) return result.response;
 
-    const email = result.data.email.toLowerCase();
+    const email = result.data.email;
 
     // Removing yourself would lock you out of the page you are standing on.
+    // actingAdmin still gets lowercased here (unlike email, already normalized
+    // by the Zod schema): it comes straight from a session JWT, which may have
+    // been minted before this fix shipped and so could still carry stale case.
     if (email === (await actingAdmin(req)).toLowerCase()) {
         return Response.json({ success: false, error: 'You cannot remove your own account' }, { status: 400 });
     }
@@ -78,7 +81,7 @@ export const handleCreateDriver = async (req: BunRequest) => {
     const { email, username, password } = result.data;
 
     const passwordHash = await Bun.password.hash(password);
-    const driver = await Driver.create(username, email.toLowerCase(), passwordHash);
+    const driver = await Driver.create(username, email, passwordHash);
     // create returns nothing only when the email is already registered. Asking first and inserting
     // second would let two concurrent admins both pass the check and one hit a unique violation.
     if (!driver) return Response.json({ success: false, error: 'A driver with that email exists' }, { status: 409 });
@@ -94,11 +97,13 @@ export const handleResetDriverPassword = async (req: BunRequest) => {
     if (!result.ok) return result.response;
 
     const passwordHash = await Bun.password.hash(result.data.password);
-    const updated = await Driver.updatePassword(result.data.email.toLowerCase(), passwordHash);
+    const updated = await Driver.updatePassword(result.data.email, passwordHash);
     if (!updated) return Response.json({ success: false, error: 'No such driver' }, { status: 404 });
 
-    // The driver app treats a rejected JWT as a signal to sign out, so an
-    // in-progress session ends at its next send rather than lingering.
+    // This does not revoke anything already issued. verifyLocationSender only
+    // checks the JWT signature and role claim and never touches the database,
+    // so a token minted before the reset keeps working — for /update and for
+    // /driver/me — until it hits SESSION_MAX_AGE (7 days) on its own.
     return Response.json({ success: true });
 };
 
@@ -106,7 +111,7 @@ export const handleRemoveDriver = async (req: BunRequest) => {
     const result = await validate(emailOnlySchema, req);
     if (!result.ok) return result.response;
 
-    const removed = await Driver.delete(result.data.email.toLowerCase());
+    const removed = await Driver.delete(result.data.email);
     if (!removed) return Response.json({ success: false, error: 'No such driver' }, { status: 404 });
 
     return Response.json({ success: true });

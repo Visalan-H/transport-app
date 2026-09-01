@@ -64,6 +64,46 @@ await client`
   )
 `;
 
+// Emails used to be stored in whatever case a request sent them in, while
+// AllowedEmail.has() (and now every service method) compares lowercased.
+// That mismatch is how a single allowlisted address could mint unlimited
+// accounts -- alice@sec.edu, Alice@sec.edu and ALICE@sec.edu all passed the
+// (lowercased) allowlist check but each landed in the case-sensitive UNIQUE
+// column as a distinct row. Dedupe has to run before the lowercasing UPDATE,
+// not after: two rows that only differ by case are about to collide on the
+// same lowercase value, and doing the UPDATE first would hit the very UNIQUE
+// constraint we're trying to satisfy. users/drivers/allowed_emails keep the
+// lowest id -- the oldest, presumably legitimate, row; otps keeps the highest
+// id, matching the case-sensitive dedupe already below (the newest code is
+// the one worth keeping). Both statements are no-ops once everything is
+// already lowercase and deduped, so this is safe to run on every boot.
+{
+    const normalize = async (table: string) => {
+        const dupes = await client.unsafe(
+            `DELETE FROM ${table} a USING ${table} b WHERE lower(a.email) = lower(b.email) AND a.id > b.id`,
+        );
+        const cased = await client.unsafe(`UPDATE ${table} SET email = lower(email) WHERE email <> lower(email)`);
+        if (dupes.count || cased.count) {
+            console.log(
+                `[db] [INFO] email_case_normalized {"table":"${table}","duplicatesRemoved":${dupes.count},"rowsLowercased":${cased.count}}`,
+            );
+        }
+    };
+
+    await normalize('users');
+    await normalize('drivers');
+    await normalize('allowed_emails');
+
+    const otpDupes =
+        await client`DELETE FROM otps a USING otps b WHERE lower(a.email) = lower(b.email) AND a.id < b.id`;
+    const otpCased = await client`UPDATE otps SET email = lower(email) WHERE email <> lower(email)`;
+    if (otpDupes.count || otpCased.count) {
+        console.log(
+            `[db] [INFO] email_case_normalized {"table":"otps","duplicatesRemoved":${otpDupes.count},"rowsLowercased":${otpCased.count}}`,
+        );
+    }
+}
+
 // OTP lookup and cleanup both scan by email/created_at on every signup attempt.
 // One live OTP per email. Older rows are dropped first because a unique index
 // cannot be built over duplicates, and any duplicate here is a leftover from
