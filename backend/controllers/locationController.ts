@@ -10,6 +10,21 @@ let totalRequests = 0;
 
 const SSE_INTERVAL = parseInt(Bun.env.SSE_INTERVAL || '5000');
 
+/**
+ * How long a bus stays in the snapshot after its last fix.
+ *
+ * Nothing used to remove a bus once it stopped broadcasting, so a driver who closed the app, lost
+ * signal or simply finished their route left a marker on the map until the next backend restart.
+ * They accumulate: every test run and every completed route adds one more.
+ *
+ * An hour is deliberately far longer than the 30s after which the map already greys a bus out
+ * (STALE_AFTER_MS in the frontend, Config.staleAfter in the driver app). Staleness is therefore
+ * communicated long before eviction, and this only clears markers nobody could mistake for live.
+ * Eviction is the cleanup, not the warning — which is why it can afford to be slow, and why it
+ * must never be short enough to delete a bus that is merely in a tunnel.
+ */
+const EVICT_AFTER = parseInt(Bun.env.BUS_EVICT_AFTER_MS || '3600000');
+
 const log = createLog('backend/location');
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -19,10 +34,24 @@ const startGlobalInterval = () => {
 
     intervalId = setInterval(() => {
         const currentState: BusDetails[] = [];
+        const cutoff = Date.now() - EVICT_AFTER;
+        let evicted = 0;
 
+        // Swept here rather than on a timer of its own: this is the only place the whole map is
+        // already being walked, and a bus nobody is watching costs nothing to leave in memory.
+        // Deleting the current key mid-forEach is well defined for a Map.
         busLocations.forEach((loc, id) => {
+            if (loc.timestamp < cutoff) {
+                busLocations.delete(id);
+                evicted++;
+                return;
+            }
             currentState.push({ id, lat: loc.lat, lng: loc.lng, timestamp: loc.timestamp });
         });
+
+        if (evicted > 0) {
+            log('info', 'buses_evicted', { evicted, evictAfterMs: EVICT_AFTER, trackedBuses: busLocations.size });
+        }
 
         const message = `data: ${JSON.stringify(currentState)}\n\n`;
 

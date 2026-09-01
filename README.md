@@ -66,6 +66,9 @@ transport/
     - Simulation sender via `x-api-key`, and only when `SIM_API_KEY` is set (it is not, in production)
 - Rejects payloads that are not four finite, in-range numbers, or whose timestamp is far from now.
 - An update is applied only if its timestamp beats the one already stored for that bus.
+- A bus with no fix for `BUS_EVICT_AFTER_MS` is dropped from the snapshot, so a driver who stops
+  broadcasting does not leave a marker behind for the life of the process. The map already greys a
+  bus out after 30s, so eviction is cleanup well after the fact, not the staleness signal itself.
 
 This used to be a separate `batcher` service that buffered fixes and flushed them
 to the backend in batches. It was removed: the work being batched was a single
@@ -185,6 +188,7 @@ SERVER_PORT=3000
 JOSE_SECRET_KEY=your-super-secret-jwt-key-here
 SESSION_MAX_AGE=604800          # 7 days in seconds
 SSE_INTERVAL=5000               # SSE broadcast interval (ms)
+BUS_EVICT_AFTER_MS=3600000      # drop a bus from the map after this long with no fix (1h)
 ALLOWED_ORIGINS=http://localhost:5173,https://yourdomain.com
 OTP_EXPIRATION_MINUTES=15
 LOG_LEVEL=info
