@@ -29,31 +29,42 @@ const log = createLog('backend/location');
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 
+/**
+ * Walks the bus map once and returns the SSE frame for everything still live, evicting anything
+ * past EVICT_AFTER on the way through.
+ *
+ * Extracted from the interval so a newly connected client can be handed the current state at once
+ * rather than waiting for the next tick — see handleStream.
+ */
+const buildSnapshot = (): string => {
+    const currentState: BusDetails[] = [];
+    const cutoff = Date.now() - EVICT_AFTER;
+    let evicted = 0;
+
+    // Swept here rather than on a timer of its own: this is the only place the whole map is
+    // already being walked, and a bus nobody is watching costs nothing to leave in memory.
+    // Deleting the current key mid-forEach is well defined for a Map.
+    busLocations.forEach((loc, id) => {
+        if (loc.timestamp < cutoff) {
+            busLocations.delete(id);
+            evicted++;
+            return;
+        }
+        currentState.push({ id, lat: loc.lat, lng: loc.lng, timestamp: loc.timestamp });
+    });
+
+    if (evicted > 0) {
+        log('info', 'buses_evicted', { evicted, evictAfterMs: EVICT_AFTER, trackedBuses: busLocations.size });
+    }
+
+    return `data: ${JSON.stringify(currentState)}\n\n`;
+};
+
 const startGlobalInterval = () => {
     if (intervalId) return; // Already running
 
     intervalId = setInterval(() => {
-        const currentState: BusDetails[] = [];
-        const cutoff = Date.now() - EVICT_AFTER;
-        let evicted = 0;
-
-        // Swept here rather than on a timer of its own: this is the only place the whole map is
-        // already being walked, and a bus nobody is watching costs nothing to leave in memory.
-        // Deleting the current key mid-forEach is well defined for a Map.
-        busLocations.forEach((loc, id) => {
-            if (loc.timestamp < cutoff) {
-                busLocations.delete(id);
-                evicted++;
-                return;
-            }
-            currentState.push({ id, lat: loc.lat, lng: loc.lng, timestamp: loc.timestamp });
-        });
-
-        if (evicted > 0) {
-            log('info', 'buses_evicted', { evicted, evictAfterMs: EVICT_AFTER, trackedBuses: busLocations.size });
-        }
-
-        const message = `data: ${JSON.stringify(currentState)}\n\n`;
+        const message = buildSnapshot();
 
         for (const controller of Array.from(controllers)) {
             try {
@@ -126,6 +137,16 @@ export const handleStream = (req: BunRequest) => {
         new ReadableStream({
             start: (controller) => {
                 controllers.add(controller);
+
+                // The shared interval is the only thing that ever sent data, so a client that
+                // connected just after a tick sat on an empty map for a full SSE_INTERVAL before
+                // seeing a single bus. Hand it the current state now; the interval takes over from
+                // the next tick. Wrapped because a client that aborts mid-handshake makes enqueue
+                // throw, and that must not take down the connection handler.
+                try {
+                    controller.enqueue(buildSnapshot());
+                } catch {}
+
                 startGlobalInterval();
                 log('info', 'sse_client_connected', { activeClients: controllers.size });
 
