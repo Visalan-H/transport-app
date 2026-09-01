@@ -39,10 +39,6 @@ jobs:
               working-directory: backend
               run: bun install --frozen-lockfile && bun run typecheck
 
-            - name: Typecheck batcher
-              working-directory: batcher
-              run: bun install --frozen-lockfile && bun run typecheck
-
             - name: Typecheck and lint frontend
               working-directory: frontend
               run: bun install --frozen-lockfile && bun run typecheck && bun run lint
@@ -61,9 +57,6 @@ jobs:
                     - service: backend
                       dockerfile: backend/Dockerfile
                       image: ghcr.io/visalan-h/transport-app-backend
-                    - service: batcher
-                      dockerfile: batcher/Dockerfile
-                      image: ghcr.io/visalan-h/transport-app-batcher
                     - service: frontend
                       dockerfile: frontend/Dockerfile
                       image: ghcr.io/visalan-h/transport-app-frontend

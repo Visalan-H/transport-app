@@ -1,8 +1,8 @@
 import type { BunRequest } from 'bun';
 import type { BusDetails } from '../../types';
-import { isBus } from '../utils/validations';
+import { parseBusText } from '../utils/validations';
 
-type LogLevel = 'info' | 'debug';
+type LogLevel = 'info' | 'debug' | 'warn';
 
 const busLocations = new Map<number, { lat: number; lng: number; timestamp: number }>();
 const controllers = new Set<ReadableStreamDefaultController>();
@@ -10,8 +10,6 @@ const controllers = new Set<ReadableStreamDefaultController>();
 let totalRequests = 0;
 
 const SSE_INTERVAL = parseInt(Bun.env.SSE_INTERVAL || '5000');
-// Matches the batcher's allowance for driver phones with a drifting clock.
-const MAX_CLOCK_SKEW = 2 * 60 * 1000;
 const LOG_LEVEL = (Bun.env.LOG_LEVEL || 'info').toLowerCase();
 const DEBUG_ENABLED = LOG_LEVEL === 'debug';
 
@@ -20,7 +18,14 @@ const log = (level: LogLevel, event: string, meta?: Record<string, unknown>) => 
 
     const timestamp = new Date().toISOString();
     const payload = meta && Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
-    console.log(`[${timestamp}] [backend/location] [${level.toUpperCase()}] ${event}${payload}`);
+    const output = `[${timestamp}] [backend/location] [${level.toUpperCase()}] ${event}${payload}`;
+
+    if (level === 'warn') {
+        console.error(output);
+        return;
+    }
+
+    console.log(output);
 };
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -58,24 +63,39 @@ const stopGlobalInterval = () => {
     }
 };
 
+/**
+ * `POST /update` — one location fix from one driver, as plain text.
+ *
+ * Drivers post here directly. This used to go through the batcher, which buffered updates and
+ * flushed them as a JSON array every few seconds; that added up to 5s of latency to a live map for
+ * no benefit, since the work being batched is a single Map write. The batcher was removed and its
+ * ingest contract — plain-text body, driver Bearer JWT — moved here unchanged, so the driver app
+ * did not need rebuilding.
+ */
 export const handleUpdate = async (req: BunRequest) => {
     totalRequests++;
-    const data = (await req.json()) as BusDetails | BusDetails[];
-    const updates = Array.isArray(data) ? data : [data];
 
-    // An update only ever wins by being newer, so a timestamp far enough ahead would pin its bus
-    // forever. The batcher rejects those at ingress; this is the same bound at the state itself, so
-    // the guarantee does not depend on the only current caller staying the only one.
-    const maxTimestamp = Date.now() + MAX_CLOCK_SKEW;
-
-    for (const bus of updates) {
-        if (bus && isBus(bus) && bus.timestamp <= maxTimestamp) {
-            const prev = busLocations.get(bus.id);
-            if (!prev || bus.timestamp > prev.timestamp) {
-                busLocations.set(bus.id, { lat: bus.lat, lng: bus.lng, timestamp: bus.timestamp });
-            }
-        }
+    // A body that is not readable at all is a 400, not an unhandled throw turning into a 500.
+    let text: string;
+    try {
+        text = await req.text();
+    } catch {
+        log('warn', 'update_rejected_bad_request', { reason: 'unreadable_body' });
+        return new Response('Bad Request', { status: 400 });
     }
+
+    const bus = parseBusText(text);
+    if (!bus) {
+        log('warn', 'update_rejected_bad_request', { reason: 'invalid_payload' });
+        return new Response('Bad Request', { status: 400 });
+    }
+
+    // Newest wins. An out-of-order arrival must never move a bus backwards.
+    const prev = busLocations.get(bus.id);
+    if (!prev || bus.timestamp > prev.timestamp) {
+        busLocations.set(bus.id, { lat: bus.lat, lng: bus.lng, timestamp: bus.timestamp });
+    }
+
     if (totalRequests % 200 === 0) {
         log('debug', 'update_checkpoint', {
             totalRequests,

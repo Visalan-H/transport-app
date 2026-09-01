@@ -5,7 +5,7 @@
 - Base server runtime: Bun.
 - Route registration: `backend/server.ts`.
 - Controllers: `backend/controllers/*`.
-- Default payload format: JSON (except `batcher /update` plain text payload).
+- Default payload format: JSON (except `POST /update`, which takes a plain-text payload).
 
 ## Types
 
@@ -42,12 +42,17 @@ data: [{"id":1,"lat":12.34,"lng":56.78,"timestamp":1690000000000}]
 
 ### POST /update
 
-- Purpose: Update one or more bus positions in backend memory.
-- Auth: Not enforced at backend route level; expected caller is internal batcher service.
-- Request content type: `application/json`.
-- Accepts either one `BusDetails` object or an array of `BusDetails`.
-- Response: `200 OK`, body `OK`.
+- Purpose: Record one bus position in backend memory. Posted directly by the driver app.
+- Auth: `Authorization: Bearer <jwt>` carrying `role: 'driver'`, or `x-api-key` matching
+  `SIM_API_KEY` when that variable is set (it is not, in production).
+- Request content type: `text/plain`.
+- Body: `busId,lat,lng,timestampMillis` — e.g. `12,13.0827,80.2707,1690000000000`.
+- Response: `200 OK`, body `OK`. `400` on a malformed payload, `401` when unauthenticated.
+- Validation: four finite numbers, `lat`/`lng` in range, `id` a positive integer, and a timestamp
+  no more than 2 minutes ahead of now or 24 hours behind it.
 - Rule: A bus update is applied only if incoming `timestamp` is newer.
+- Not rate limited at the route level — drivers behind one carrier NAT would share a bucket.
+  nginx's `limit_req` zone fronts this path instead.
 
 ### POST /auth/send-otp
 
@@ -141,7 +146,7 @@ data: [{"id":1,"lat":12.34,"lng":56.78,"timestamp":1690000000000}]
 - Driver tokens are Bearer tokens, not cookies — intended for mobile (Flutter) clients.
 - `role` is `student` for session cookies and `driver` for `/driver/login` tokens. Both are signed
   with the same `JOSE_SECRET_KEY`, so a valid signature alone does not establish which kind of token
-  it is — `verifyDriver` and the batcher's `/update` both require `role: 'driver'` explicitly.
+  it is — `verifyDriver` and `/update` both require `role: 'driver'` explicitly.
   A session cookie is readable from devtools, so without this a student could replay their own token
   as a driver Bearer token and post a fake position for any bus.
 
@@ -162,7 +167,7 @@ data: [{"id":1,"lat":12.34,"lng":56.78,"timestamp":1690000000000}]
 ## Key Environment Variables
 
 - `SERVER_PORT` (default `3000`)
-- `INTERVAL` (SSE interval in ms, default `5000`)
+- `SSE_INTERVAL` (SSE broadcast interval in ms, default `5000`)
 - `CORS_ORIGIN` (comma-separated allowlist)
 - `JOSE_SECRET_KEY`
 - `SESSION_MAX_AGE`
