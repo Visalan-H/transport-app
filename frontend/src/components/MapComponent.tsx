@@ -1,5 +1,7 @@
 import { useState, useMemo, memo, useCallback, useEffect, useRef } from 'react';
 import Map, { AttributionControl } from 'react-map-gl/maplibre';
+import { shadow } from '@versatiles/style';
+import type { StyleSpecification } from 'maplibre-gl';
 import type { MapLayerMouseEvent, MapRef } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { BusDetails } from '../../../types';
@@ -106,16 +108,52 @@ function useAutoCenterFirstBus({ mapRef, validBuses, hasUserMovedRef }: UseAutoC
     }, [hasUserMovedRef, mapRef, validBuses]);
 }
 
+// Map styles are generated here rather than fetched from tiles.versatiles.org/assets/styles/*.
+// Two reasons: the hosted presets are tuned for a general-purpose map and clash with this app's
+// monochrome palette (white / #282a37), and fetching one costs a ~168kB request before the map can
+// draw anything. Building them locally removes that request entirely.
+//
+// baseUrl is not optional in practice: the builder defaults it to document.location.origin in a
+// browser, which would point tiles, glyphs and sprites at our own domain instead of VersaTiles.
+const TILE_HOST = 'https://tiles.versatiles.org';
+
+// Both themes are recoloured rather than used as shipped: VersaTiles' presets are tuned for a
+// general-purpose map and read as too saturated beside a UI that is white and #282a37 and nothing
+// else. Dark blends `shadow` toward the app background so the map belongs to the theme instead of
+// sitting on top of it as a separate grey panel.
+//
+// Light is the tonal mirror of dark, not a second style: same base, same recolour, with
+// invertBrightness flipping the luminosity and the blend aimed at white rather than the navy. One
+// visual character across both themes, rather than two maps that happen to share an app.
+//
+// Two things learned the hard way and worth not repeating. Desaturating fully (saturate:-1) looks
+// tempting for a monochrome UI but flattens the map: colour is what separates water from parks from
+// road classes, and without it everything becomes one grey mass. And contrast pushes light tones
+// toward white, so on the light theme a near-white default building fill lands on exactly #ffffff
+// and the buildings vanish into the land.
+//
+// The mirror inherits dark's very subtle background-to-building separation -- 7 steps of luminance,
+// which reads fine dark and weakly light. blendColor is the knob if that needs widening; dropping
+// the blend takes it to 12.
+const BRIGHT_MAP_STYLE = shadow({
+    baseUrl: TILE_HOST,
+    recolor: { invertBrightness: true, saturate: -0.8, blend: 0.4, blendColor: '#ffffff', contrast: 1.6 },
+}) as StyleSpecification;
+
+// Blended toward the app background so the map reads as part of the dark theme rather than a
+// separate panel sitting on top of it.
+const DARK_MAP_STYLE = shadow({
+    baseUrl: TILE_HOST,
+    recolor: { saturate: -0.8, blend: 0.4, blendColor: '#282a37', contrast: 1.6 },
+}) as StyleSpecification;
+
 export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapComponentProps) => {
     const { theme } = useTheme();
 
     const [selectedBus, setSelectedBus] = useState<BusDetails | null>(null);
     const hasUserMovedRef = useRef(false);
 
-    const mapStyle =
-        theme === 'dark'
-            ? 'https://tiles.openfreemap.org/styles/dark'
-            : 'https://tiles.openfreemap.org/styles/positron';
+    const mapStyle = theme === 'dark' ? DARK_MAP_STYLE : BRIGHT_MAP_STYLE;
 
     const validBuses = useMemo(() => busLocations.filter((b) => b?.lat != null && b?.lng != null), [busLocations]);
     const busesById = useMemo(() => new globalThis.Map(validBuses.map((bus) => [bus.id, bus])), [validBuses]);
