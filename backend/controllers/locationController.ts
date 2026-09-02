@@ -2,13 +2,14 @@ import type { BunRequest } from 'bun';
 import type { BusDetails } from '../../types';
 import { parseBusText } from '../utils/validations';
 import { createLog } from '../utils/log';
+import { env } from '../config/env';
 
 const busLocations = new Map<number, { lat: number; lng: number; timestamp: number }>();
 const controllers = new Set<ReadableStreamDefaultController>();
 
 let totalRequests = 0;
 
-const SSE_INTERVAL = parseInt(Bun.env.SSE_INTERVAL || '5000');
+const SSE_INTERVAL = env.SSE_INTERVAL;
 
 /**
  * How long a bus stays in the snapshot after its last fix.
@@ -23,7 +24,7 @@ const SSE_INTERVAL = parseInt(Bun.env.SSE_INTERVAL || '5000');
  * Eviction is the cleanup, not the warning — which is why it can afford to be slow, and why it
  * must never be short enough to delete a bus that is merely in a tunnel.
  */
-const EVICT_AFTER = parseInt(Bun.env.BUS_EVICT_AFTER_MS || '3600000');
+const EVICT_AFTER = env.BUS_EVICT_AFTER_MS;
 
 const log = createLog('backend/location');
 

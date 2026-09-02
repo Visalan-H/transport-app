@@ -1,7 +1,7 @@
 import type { BunRequest } from 'bun';
+import { env } from '../config/env';
 
-const raw = Bun.env.ALLOWED_ORIGINS;
-if (!raw) throw new Error('ALLOWED_ORIGINS env var is not set');
+const raw = env.ALLOWED_ORIGINS;
 const ALLOWED_ORIGINS = raw
     .split(',')
     .map((origin) => origin.trim())

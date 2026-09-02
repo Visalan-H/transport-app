@@ -5,12 +5,13 @@ import { adminRoutes } from './routes/adminRoutes';
 import { healthRoutes } from './routes/healthRoutes';
 import { handlePreflight, wrapRoutes } from './services/corsService';
 import { startOtpCleanupJob } from './jobs/otpCleanup';
+import { env } from './config/env';
 
 // Start background jobs
 startOtpCleanupJob();
 
 Bun.serve({
-    port: Number(Bun.env.SERVER_PORT || 3000),
+    port: env.SERVER_PORT,
     routes: {
         ...wrapRoutes(authRoutes),
         ...wrapRoutes(locationRoutes),
@@ -24,4 +25,4 @@ Bun.serve({
     },
 });
 
-console.log(`Server running at http://localhost:${Bun.env.SERVER_PORT || 3000}`);
+console.log(`Server running at http://localhost:${env.SERVER_PORT}`);

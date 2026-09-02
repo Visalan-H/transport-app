@@ -4,9 +4,9 @@ import { users } from '../models/user';
 import { otps } from '../models/otp';
 import { drivers } from '../models/driver';
 import { allowedEmails } from '../models/allowedEmail';
+import { env } from './env';
 
-const connectionString = Bun.env.NEON_POSTGRES_URI;
-if (!connectionString) throw new Error('NEON_POSTGRES_URI is not set');
+const connectionString = env.NEON_POSTGRES_URI;
 
 // Deliberately the stock postgres-js driver rather than a provider-specific
 // one, and no hardcoded ssl setting: nothing here knows or cares that Neon is
