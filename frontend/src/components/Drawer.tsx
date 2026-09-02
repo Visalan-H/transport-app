@@ -18,7 +18,6 @@ type AppDrawerProps = {
 export function AppDrawer({ nearbyBuses, isLoadingLocation, mapRef }: AppDrawerProps) {
     const [expanded, setExpanded] = useState(false);
     const isVisible = useDelayedVisibility({ delayMs: 100 });
-    const visibleNearbyBuses = nearbyBuses.slice(0, 10);
 
     const handleClick = (lat: number, lng: number) => {
         zoomTo({ lat, lng, mapRef });
@@ -49,7 +48,7 @@ export function AppDrawer({ nearbyBuses, isLoadingLocation, mapRef }: AppDrawerP
                             <p className="text-muted-foreground text-sm">No buses nearby</p>
                         </div>
                     ) : (
-                        visibleNearbyBuses.map((bus) => (
+                        nearbyBuses.map((bus) => (
                             <button
                                 key={bus.id}
                                 type="button"

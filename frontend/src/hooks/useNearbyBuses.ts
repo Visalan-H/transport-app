@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import type { BusDetails } from '../../../types';
 import calculateDistance from '@/utils/calculateDistance';
 
-const NEARBY_BUS_LIMIT = 10;
-
 export function useNearbyBus(busLocations: BusDetails[]) {
     const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
     const [isLoadingLocation, setIsLoadingLocation] = useState(() => !!navigator.geolocation);
@@ -44,27 +42,17 @@ export function useNearbyBus(busLocations: BusDetails[]) {
     const nearbyBuses = useMemo(() => {
         if (!location) return [];
 
-        const topNearby: (BusDetails & { distance: number })[] = [];
-
-        for (const bus of busLocations) {
-            const next = {
+        // Every bus, sorted nearest first, rather than the closest ten. The drawer list scrolls
+        // and there are ~100 routes at most, so the cap bought nothing measurable -- what it cost
+        // was the eleventh-nearest bus being invisible, with nothing on screen saying so. A student
+        // opening this is looking for one specific bus, and whether it lands inside an arbitrary
+        // top-ten is not something they can see or reason about.
+        return busLocations
+            .map((bus) => ({
                 ...bus,
                 distance: calculateDistance(location.lat, location.lng, bus.lat, bus.lng),
-            };
-
-            if (topNearby.length < NEARBY_BUS_LIMIT) {
-                topNearby.push(next);
-                topNearby.sort((a, b) => a.distance - b.distance);
-                continue;
-            }
-
-            if (next.distance >= topNearby[topNearby.length - 1].distance) continue;
-
-            topNearby[topNearby.length - 1] = next;
-            topNearby.sort((a, b) => a.distance - b.distance);
-        }
-
-        return topNearby;
+            }))
+            .sort((a, b) => a.distance - b.distance);
     }, [busLocations, location]);
 
     return {
