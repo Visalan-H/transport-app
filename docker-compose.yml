@@ -9,6 +9,13 @@ services:
             context: .
             dockerfile: backend/Dockerfile
         container_name: transport_backend
+        # Docker's default json-file driver never rotates. On a 1GB VM with a small disk that
+        # fills it eventually and takes the site down in a way that looks like a mystery.
+        logging:
+            driver: json-file
+            options:
+                max-size: '10m'
+                max-file: '3'
         restart: always
         expose:
             - '3000'
@@ -25,6 +32,13 @@ services:
             context: .
             dockerfile: ./frontend/Dockerfile
         container_name: transport_frontend
+        # Docker's default json-file driver never rotates. On a 1GB VM with a small disk that
+        # fills it eventually and takes the site down in a way that looks like a mystery.
+        logging:
+            driver: json-file
+            options:
+                max-size: '10m'
+                max-file: '3'
         restart: always
         ports:
             - '80:80'
@@ -53,6 +67,13 @@ services:
             context: .
             dockerfile: simulation/Dockerfile
         container_name: transport_simulation
+        # Docker's default json-file driver never rotates. On a 1GB VM with a small disk that
+        # fills it eventually and takes the site down in a way that looks like a mystery.
+        logging:
+            driver: json-file
+            options:
+                max-size: '10m'
+                max-file: '3'
         env_file:
             - ./simulation/.env
         environment:
