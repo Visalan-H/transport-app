@@ -1,3 +1,5 @@
+import { env } from './env';
+
 /**
  * ADMIN_EMAILS are the operators who run the system (currently the repo
  * owner and the college Dean) — unrelated to `allowed_emails`, which is the
@@ -10,7 +12,7 @@
  *
  * ADMIN_EMAILS is comma-separated, matching the ALLOWED_ORIGINS convention.
  */
-const raw = Bun.env.ADMIN_EMAILS;
+const raw = env.ADMIN_EMAILS;
 
 if (!raw) {
     throw new Error('ADMIN_EMAILS is not set');

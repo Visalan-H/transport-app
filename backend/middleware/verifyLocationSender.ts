@@ -1,6 +1,7 @@
 import type { BunRequest } from 'bun';
 import { decodeBearer } from '../services/cookieService';
 import { createLog } from '../utils/log';
+import { env } from '../config/env';
 
 /**
  * Optional on purpose, and unset in production. There is no GPS hardware; the only sender that
@@ -8,7 +9,7 @@ import { createLog } from '../utils/log';
  * could never hold a single driver's token. Leaving the variable unset removes the key path
  * entirely rather than leaving a static credential that can move any bus on the map.
  */
-const SIM_API_KEY = Bun.env.SIM_API_KEY;
+const SIM_API_KEY = env.SIM_API_KEY;
 
 const log = createLog('backend/location');
 

@@ -1,12 +1,13 @@
 import type { BunRequest } from 'bun';
 import { SignJWT, jwtVerify } from 'jose';
+import { env } from '../config/env';
 
-const SECRET = new TextEncoder().encode(Bun.env.JOSE_SECRET_KEY);
-const MAX_AGE = parseInt(Bun.env.SESSION_MAX_AGE || '604800');
+const SECRET = new TextEncoder().encode(env.JOSE_SECRET_KEY);
+const MAX_AGE = env.SESSION_MAX_AGE;
 
 const cookieOptions = {
     httpOnly: true,
-    secure: Bun.env.NODE_ENV === 'production',
+    secure: env.NODE_ENV === 'production',
     sameSite: 'strict' as const,
     path: '/',
     maxAge: MAX_AGE,

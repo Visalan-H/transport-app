@@ -1,6 +1,7 @@
 import { Otp } from '../services/otpService';
+import { env } from '../config/env';
 
-const CLEANUP_INTERVAL = Number(Bun.env.OTP_EXPIRATION_MINUTES) * 60 * 1000 || 15 * 60 * 1000;
+const CLEANUP_INTERVAL = env.OTP_EXPIRATION_MINUTES * 60 * 1000;
 
 export function startOtpCleanupJob() {
     cleanupExpiredOtps();

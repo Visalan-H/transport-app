@@ -1,13 +1,13 @@
 import { db } from '../config/db';
 import { otps } from '../models/otp';
 import { eq, lte } from 'drizzle-orm';
+import { env } from '../config/env';
 
-const DEFAULT_OTP_EXPIRATION_MINUTES = 15;
-
-const expirationMs = () => {
-    const minutes = Number(Bun.env.OTP_EXPIRATION_MINUTES || DEFAULT_OTP_EXPIRATION_MINUTES);
-    return minutes * 60 * 1000;
-};
+// The single definition of how long an OTP lives. This was one of three, alongside sendOtp (which
+// tells the user the number) and otpCleanup (which deletes on it) -- all agreeing only because their
+// defaults happened to match, so changing one would have quietly made the email advertise an expiry
+// the server did not enforce.
+const expirationMs = () => env.OTP_EXPIRATION_MINUTES * 60 * 1000;
 
 export const isOtpExpired = (createdAt: Date | null | undefined): boolean => {
     if (!createdAt) return true;
