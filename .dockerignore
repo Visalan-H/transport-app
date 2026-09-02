@@ -51,3 +51,5 @@ Thumbs.db
 coverage
 tmp
 *.pid
+# Load testing tooling — never part of a runtime image
+loadtest
