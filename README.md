@@ -5,8 +5,9 @@ Polaris is a real-time bus tracking platform for Saveetha transport operations.
 ## What It Provides
 
 - Live map with SSE updates for all tracked buses.
-- Authenticated student access with OTP onboarding.
+- Authenticated student access with OTP onboarding, gated on a paid-transport allowlist.
 - Driver location updates accepted, validated and applied on arrival.
+- An admin page (`/admin`) for the allowlist, registered students and driver accounts.
 - Lightweight architecture optimized for low operational cost.
 
 ## Architecture
@@ -45,16 +46,32 @@ transport/
     android/
   simulation/
     sim.ts
+  scripts/
+    generate-bus-routes.ts
+  loadtest/
+    stream-load.ts
   types/
     index.d.ts
 ```
+
+`scripts/generate-bus-routes.ts` generates `driver_app/lib/data/bus_routes.dart`
+from `frontend/src/constants/BusIdMap.ts`, so the two copies of the bus-ID to
+route-name mapping cannot drift. CI runs it with `--check` and fails on a
+mismatch — drift has no runtime symptom, it just shows students one route name
+and the driver another.
 
 ## Runtime Behavior
 
 ### Backend
 
-- `GET /stream` is protected by session auth middleware.
+- `GET /stream` is protected by session auth middleware. A new subscriber gets
+  the current snapshot immediately, then one per `SSE_INTERVAL`; the broadcast
+  timer starts on the first subscriber and stops with the last.
 - `POST /update` accepts one plain-text location fix from a driver.
+- `GET /health` is unauthenticated liveness for an uptime monitor.
+- `/admin/*` (reached as `/api/admin/*`) requires a session cookie **and** an
+  email in `ADMIN_EMAILS`. Not an admin is a `403`, not a `401` — the frontend
+  distinguishes the two.
 - CORS origin handling is allowlist-based and request-aware.
 - OTP expiry is enforced during register verification.
 
@@ -78,11 +95,24 @@ same body and the same auth, so no driver app rebuild was needed.
 
 ## Security Summary
 
-- HTTP-only session cookies.
-- Rate limiting on auth endpoints.
+- HTTP-only session cookies (`SameSite=Strict`, `Secure` in production).
+- Rate limiting on auth endpoints, in the backend and again in nginx.
 - OTP hashes only, never plain OTP storage.
 - Origin allowlist CORS.
-- Location ingest requires a driver token.
+- Location ingest requires a driver token carrying `role: 'driver'`.
+- TLS to the origin with a Cloudflare Origin CA certificate, so Cloudflare runs
+  in Full (strict) — see Origin TLS below.
+- A Content-Security-Policy and the usual hardening headers, served from
+  `frontend/security-headers.conf` and `include`d into every nginx location.
+  The `include` is not decoration: nginx's `add_header` only inherits from an
+  outer level when the current level defines _none_, so a single `add_header` in
+  a location silently drops every inherited header.
+- Backend and frontend containers run as a non-root user.
+
+There is no token revocation. Logging out, deleting a user or resetting a
+driver's password all leave already-issued tokens valid until `SESSION_MAX_AGE`
+elapses. Rotating `JOSE_SECRET_KEY` invalidates every session at once and is the
+only way to cut one short.
 
 ## Quick Start
 
@@ -116,8 +146,11 @@ sudo docker compose up -d --remove-orphans
 without it Docker leaves the old container running, since it no longer belongs
 to any service compose knows about. It is harmless to pass every time.
 
-The backend requires `NEON_POSTGRES_URI` and `ADMIN_EMAILS` in `backend/.env` --
-it throws at startup if either is missing.
+The backend validates its whole environment at startup (`backend/config/env.ts`)
+and refuses to boot if anything required is missing, printing every problem at
+once rather than one per restart. `NEON_POSTGRES_URI`, `JOSE_SECRET_KEY`,
+`ALLOWED_ORIGINS`, `EMAIL_USER` and `EMAIL_PASS` have no defaults; everything
+else does. See the Environment Variables section below.
 
 #### Origin TLS
 
@@ -150,8 +183,9 @@ still works: the container entrypoint writes a throwaway self-signed pair when t
 directory is empty. That certificate is worthless by design and Full (strict) will
 correctly refuse it, so it can never be mistaken for a production setup.
 
-The three GHCR packages inherit this repo's public visibility, so the server
-pulls anonymously and needs no registry login. If a package ever shows up
+Both GHCR packages (`transport-app-backend`, `transport-app-frontend`) inherit
+this repo's public visibility, so the server pulls anonymously and needs no
+registry login. If a package ever shows up
 private (GitHub profile -> Packages -> package -> Package settings), a
 `docker compose pull` on the server fails with a 401 until it is made public.
 
@@ -184,8 +218,8 @@ Builds are published on the [Releases page](https://github.com/Visalan-H/transpo
 
 Only the `arm64-v8a` build is attached to releases. The 32-bit build is a
 fallback for hardware old enough that it is not worth carrying an extra asset
-for by default — if the arm64 APK refuses to install with a generic *App not
-installed* error, that is the case, and the 32-bit build can be produced from
+for by default — if the arm64 APK refuses to install with a generic _App not
+installed_ error, that is the case, and the 32-bit build can be produced from
 source:
 
 ```bash
@@ -200,9 +234,23 @@ issuing a new APK.
 
 ## Operational Notes
 
-- Compose includes per-service CPU and memory limits.
+- Compose includes per-service CPU, memory and PID limits.
+- Container logs are rotated (`max-size: 10m`, `max-file: 3`). Docker's default
+  `json-file` driver never rotates, which on a 1 GB VM eventually fills the disk
+  and takes the site down in a way that looks like a mystery.
 - Structured logs include timestamp, service tag, level, and event name.
 - To increase log verbosity, set `LOG_LEVEL=debug`.
+- `GET /health` is unauthenticated and returns `{ status, uptimeSeconds }`, for
+  an external uptime monitor. It is deliberately shallow — it does not touch
+  Postgres, since a database blip does not stop bus tracking and should not page
+  anyone. It is excluded from every rate-limit zone, because a throttled health
+  check returns 429 and the monitor reports that as an outage.
+- `loadtest/stream-load.ts` is a dependency-free probe for SSE concurrency. It
+  is excluded from the Docker build context and never ships in an image. See
+  `loadtest/README.md`.
+- None of the bus location state is persisted. A backend restart loses it and
+  the map rebuilds itself within one `SSE_INTERVAL`, since every driver
+  re-announces every 5s.
 
 ## Documentation Index
 
@@ -214,14 +262,26 @@ issuing a new APK.
 
 ### Backend (`backend/.env`)
 
+Parsed and validated once at startup by `backend/config/env.ts`. Nothing else in
+the backend reads `Bun.env`. The five variables with no default below are
+required; the rest fall back to the values shown.
+
 ```env
+# Required -- the backend exits at startup if any of these is missing
+NEON_POSTGRES_URI=postgresql://...        # hosted Neon Postgres
+JOSE_SECRET_KEY=your-super-secret-jwt-key-here   # 32+ chars; shorter only warns
+ALLOWED_ORIGINS=http://localhost:5173,https://yourdomain.com
+
+# Comma-separated admins. Exempt from the allowed_emails gate -- without at
+# least one, a fresh database deadlocks: signup needs the allowlist, the
+# allowlist needs an admin session, and a session needs an account.
+ADMIN_EMAILS=you@example.com
+
 SERVER_PORT=3000
-JOSE_SECRET_KEY=your-super-secret-jwt-key-here
 SESSION_MAX_AGE=604800          # 7 days in seconds
 SSE_INTERVAL=5000               # SSE broadcast interval (ms)
 BUS_EVICT_AFTER_MS=3600000      # drop a bus from the map after this long with no fix (1h)
-ALLOWED_ORIGINS=http://localhost:5173,https://yourdomain.com
-OTP_EXPIRATION_MINUTES=15
+OTP_EXPIRATION_MINUTES=15       # also sets the OTP cleanup job's interval
 LOG_LEVEL=info
 
 # Optional, and deliberately unset in production. Enables the `x-api-key` path on
@@ -230,7 +290,7 @@ LOG_LEVEL=info
 # simulation/.env, to the same value, when you want synthetic traffic locally.
 # SIM_API_KEY=any-shared-local-value
 
-# Email Configuration (Gmail app password)
+# Required. Gmail app password -- OTP mail is how anyone signs up at all.
 EMAIL_USER=your-email@gmail.com
 EMAIL_PASS=your-app-password
 ```
