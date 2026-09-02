@@ -1,6 +1,11 @@
+import type { BunRequest } from 'bun';
+
 const raw = Bun.env.ALLOWED_ORIGINS;
 if (!raw) throw new Error('ALLOWED_ORIGINS env var is not set');
-const ALLOWED_ORIGINS = raw.split(',').map((origin) => origin.trim()).filter(Boolean);
+const ALLOWED_ORIGINS = raw
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
 
 const baseCorsHeaders = {
     'Access-Control-Allow-Credentials': 'true',
@@ -32,19 +37,29 @@ const applyCorsHeaders = (req: Request, headers: Headers) => {
     Object.entries(baseCorsHeaders).forEach(([key, value]) => headers.set(key, value));
 };
 
-export const withCors = (handler: any) => async (req: Request) => {
-    const res = await handler(req);
-    applyCorsHeaders(req, res.headers);
-    return res;
-};
+/**
+ * A route is either one handler for every method, or a map of method to handler -- the two shapes
+ * Bun.serve accepts, and the reason wrapRoutes has to branch on typeof below.
+ */
+type RouteHandler = (req: BunRequest) => Response | Promise<Response>;
+type MethodHandlers = Record<string, RouteHandler>;
+type RouteTable = Record<string, RouteHandler | MethodHandlers>;
 
-export const wrapRoutes = (routes: Record<string, any>) => {
-    const wrapped: Record<string, any> = {};
+export const withCors =
+    (handler: RouteHandler): RouteHandler =>
+    async (req) => {
+        const res = await handler(req);
+        applyCorsHeaders(req, res.headers);
+        return res;
+    };
+
+export const wrapRoutes = (routes: RouteTable): RouteTable => {
+    const wrapped: RouteTable = {};
     for (const [path, handler] of Object.entries(routes)) {
         wrapped[path] =
             typeof handler === 'function'
                 ? withCors(handler)
-                : Object.fromEntries(Object.entries(handler).map(([m, h]) => [m, withCors(h)]));
+                : Object.fromEntries(Object.entries(handler).map(([method, h]) => [method, withCors(h)]));
     }
     return wrapped;
 };
