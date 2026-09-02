@@ -5,9 +5,14 @@ type BusIDMap = {
 /**
  * Source of truth for bus ID -> route name.
  *
- * `driver_app/lib/data/bus_routes.dart` is a verbatim port of this map. There is
- * no shared source between TypeScript and Dart, so any edit here has to be made
- * there too or the driver app will show a different route name than the map does.
+ * `driver_app/lib/data/bus_routes.dart` is generated from this map by
+ * `scripts/generate-bus-routes.ts`. After editing here, re-run:
+ *
+ *     bun scripts/generate-bus-routes.ts
+ *
+ * CI regenerates it and fails if the committed file differs, so the two cannot
+ * drift apart -- which matters because nothing else turns a bus id into a name,
+ * and a mismatch would show students one route and the driver another silently.
  */
 export const SEC_Bus_Routes: BusIDMap = {
     1: 'MMC 2A',
