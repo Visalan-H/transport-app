@@ -43,6 +43,12 @@ jobs:
               working-directory: frontend
               run: bun install --frozen-lockfile && bun run typecheck && bun run lint
 
+            # bus_routes.dart is generated from the frontend's SEC_Bus_Routes. Regenerating and
+            # diffing is what stops the two drifting: a mismatch has no runtime symptom, it just
+            # shows students one route name and the driver another.
+            - name: Check generated bus routes are in sync
+              run: bun scripts/generate-bus-routes.ts --check
+
     build-and-push:
         needs: checks
         # Pull requests stop at checks; only a push to main publishes images.
