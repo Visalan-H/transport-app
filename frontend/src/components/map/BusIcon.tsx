@@ -40,12 +40,33 @@ const getBusImage = (): Promise<HTMLImageElement> => {
     return cachedBusImagePromise;
 };
 
-const toGreyscale = (img: HTMLImageElement): ImageData => {
+type RasterizeOptions = {
+    /** Greyed and faded, for a bus that has stopped reporting. */
+    grey?: boolean;
+    /** Mirrored horizontally, for a bus travelling east. */
+    mirror?: boolean;
+};
+
+/**
+ * Draws the bus into a canvas and hands back raw pixels.
+ *
+ * BUS_SVG is a side view facing left, so direction is shown by mirroring rather than by rotating:
+ * icon-rotate on a profile drawing renders the bus upside-down anywhere south of due east. Four
+ * sprites (normal/stale x left/right) is the whole cost of that, and mirroring is a canvas
+ * transform rather than four hand-drawn assets.
+ */
+const rasterize = (img: HTMLImageElement, { grey = false, mirror = false }: RasterizeOptions): ImageData => {
     const canvas = document.createElement('canvas');
     canvas.width = img.width;
     canvas.height = img.height;
     const ctx = canvas.getContext('2d')!;
-    ctx.filter = 'grayscale(100%) opacity(55%)';
+
+    if (grey) ctx.filter = 'grayscale(100%) opacity(55%)';
+    if (mirror) {
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+    }
+
     ctx.drawImage(img, 0, 0);
     return ctx.getImageData(0, 0, canvas.width, canvas.height);
 };
@@ -54,11 +75,18 @@ export const registerBusImage = async (map: maplibregl.Map) => {
     try {
         const img = await getBusImage();
 
+        // The unmirrored, full-colour icon is the one case that can go in as the element itself.
         if (!map.hasImage('bus-icon')) {
             map.addImage('bus-icon', img, { pixelRatio: 2 });
         }
+        if (!map.hasImage('bus-icon-right')) {
+            map.addImage('bus-icon-right', rasterize(img, { mirror: true }), { pixelRatio: 2 });
+        }
         if (!map.hasImage('bus-icon-stale')) {
-            map.addImage('bus-icon-stale', toGreyscale(img), { pixelRatio: 2 });
+            map.addImage('bus-icon-stale', rasterize(img, { grey: true }), { pixelRatio: 2 });
+        }
+        if (!map.hasImage('bus-icon-stale-right')) {
+            map.addImage('bus-icon-stale-right', rasterize(img, { grey: true, mirror: true }), { pixelRatio: 2 });
         }
     } catch (e) {
         console.error('Failed to load bus icon', e);

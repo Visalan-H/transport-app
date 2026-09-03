@@ -4,7 +4,7 @@ import { shadow } from '@versatiles/style';
 import type { StyleSpecification } from 'maplibre-gl';
 import type { MapLayerMouseEvent, MapRef } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import type { BusDetails } from '../../../types';
+import type { TrackedBus } from '@/utils/busFacing';
 import { useTheme } from '../hooks/useTheme';
 import { MemoizedLocate } from '@/constants/MemoizedLocate';
 import { BusLayer } from './map/BusLayer';
@@ -14,17 +14,12 @@ import { registerBusImage } from './map/BusIcon';
 import zoomTo from '@/utils/zoomTo';
 
 type MapComponentProps = {
-    busLocations: BusDetails[];
+    busLocations: TrackedBus[];
     userLocation: { lat: number; lng: number } | null;
     mapRef: React.RefObject<MapRef | null>;
 };
 
-type ValidBus = {
-    id: number;
-    lat: number;
-    lng: number;
-    timestamp: number;
-};
+type ValidBus = TrackedBus;
 
 type UseMapLoadStateArgs = {
     mapRef: React.RefObject<MapRef | null>;
@@ -150,7 +145,7 @@ const DARK_MAP_STYLE = shadow({
 export const MapComponent = memo(({ busLocations, userLocation, mapRef }: MapComponentProps) => {
     const { theme } = useTheme();
 
-    const [selectedBus, setSelectedBus] = useState<BusDetails | null>(null);
+    const [selectedBus, setSelectedBus] = useState<TrackedBus | null>(null);
     const hasUserMovedRef = useRef(false);
 
     const mapStyle = theme === 'dark' ? DARK_MAP_STYLE : BRIGHT_MAP_STYLE;
