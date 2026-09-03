@@ -1,11 +1,11 @@
 import { Source, Layer } from 'react-map-gl/maplibre';
-import type { BusDetails } from '../../../../types';
+import type { TrackedBus } from '@/utils/busFacing';
 import { SEC_Bus_Routes } from '../../constants/BusIdMap';
 import { useBusLayerProps, useBusGeoJSON } from '../../hooks/useBusLayer';
 import { useNow } from '../../hooks/useNow';
 
 type BusLayerProps = {
-    buses: BusDetails[];
+    buses: TrackedBus[];
     theme: string;
 };
 

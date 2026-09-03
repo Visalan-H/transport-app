@@ -17,7 +17,14 @@ export const useBusLayerProps = (theme: string): LayerProps =>
             id: 'bus-icons',
             type: 'symbol',
             layout: {
-                'icon-image': ['case', ['get', 'stale'], 'bus-icon-stale', 'bus-icon'],
+                // Four sprites, picked on stale x facing. See BusIcon.tsx for why direction is a
+                // mirrored image rather than icon-rotate.
+                'icon-image': [
+                    'case',
+                    ['get', 'stale'],
+                    ['case', ['get', 'facingRight'], 'bus-icon-stale-right', 'bus-icon-stale'],
+                    ['case', ['get', 'facingRight'], 'bus-icon-right', 'bus-icon'],
+                ],
                 'icon-size': 1.5,
                 'icon-anchor': 'bottom',
                 'icon-allow-overlap': true,
@@ -40,7 +47,7 @@ export const useBusLayerProps = (theme: string): LayerProps =>
     );
 
 export const useBusGeoJSON = (
-    validBuses: { id: number; lat: number; lng: number; timestamp: number }[],
+    validBuses: { id: number; lat: number; lng: number; timestamp: number; facingRight: boolean }[],
     routes: Record<number, string>,
     now: number,
 ) =>
@@ -56,6 +63,7 @@ export const useBusGeoJSON = (
                     timestamp: bus.timestamp,
                     timeStr: timeFormatter.format(new Date(bus.timestamp)),
                     stale: now - bus.timestamp > STALE_AFTER_MS,
+                    facingRight: bus.facingRight,
                 },
             })),
         }),
