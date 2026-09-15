@@ -123,22 +123,9 @@ await client`CREATE UNIQUE INDEX IF NOT EXISTS otps_email_key ON otps (email)`;
 await client`DROP INDEX IF EXISTS otps_email_idx`;
 await client`CREATE INDEX IF NOT EXISTS otps_created_at_idx ON otps (created_at)`;
 
-// The signup allowlist used to be a hardcoded Set in config/validEmails.ts,
-// which meant adding one student required a rebuild and redeploy. It now lives
-// in allowed_emails. Seed the old list on first run so an existing deployment
-// does not suddenly reject the people it already accepted. Only runs while the
-// table is empty, so removing a seeded address stays removed.
-{
-    const rows = await client<{ count: string }[]>`SELECT COUNT(*) AS count FROM allowed_emails`;
-    if (Number(rows[0]?.count ?? 0) === 0) {
-        await client`
-            INSERT INTO allowed_emails (email, added_by)
-            VALUES ('visalanprivate@gmail.com', 'seed:migration'),
-                   ('csroopak333@gmail.com', 'seed:migration')
-            ON CONFLICT (email) DO NOTHING
-        `;
-    }
-}
+// The allowlist is managed entirely through the admin page now. Signup bootstrap
+// no longer needs a seeded student: ADMIN_EMAILS is exempt from the allowlist,
+// so an admin can always sign in and add the first paid student themselves.
 
 export const db = drizzle(client, {
     schema: { users, otps, drivers, allowedEmails },
