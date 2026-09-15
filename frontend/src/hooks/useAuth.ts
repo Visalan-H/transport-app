@@ -14,18 +14,18 @@ export interface User {
     isAdmin?: boolean;
 }
 
+/** Mirrors the backend's registerSchema: prove the address with an OTP or an invite token. */
+export type RegisterPayload =
+    | { method: 'otp'; username: string; email: string; password: string; otp: string }
+    | { method: 'invite'; username: string; password: string; inviteToken: string };
+
 export interface AuthContextValue {
     user: User | null;
     loading: boolean;
     sendOtp: (email: string) => Promise<{ ok: boolean; message?: string }>;
     requestAccess: (email: string) => Promise<{ ok: boolean; message?: string }>;
     login: (email: string, password: string) => Promise<{ ok: boolean; message?: string }>;
-    register: (
-        username: string,
-        email: string,
-        password: string,
-        otp: string,
-    ) => Promise<{ ok: boolean; message?: string }>;
+    register: (payload: RegisterPayload) => Promise<{ ok: boolean; message?: string }>;
     logout: () => Promise<{ ok: boolean; message?: string }>;
 }
 

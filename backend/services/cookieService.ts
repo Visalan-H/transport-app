@@ -29,6 +29,35 @@ export async function generateToken(userId: number, email: string, username: str
         .sign(SECRET);
 }
 
+/**
+ * Invite tokens are proof that an admin vouched for this address, so a signup
+ * through one skips the OTP step. They are minted with the same secret as
+ * sessions but carry `purpose: 'invite'` and no `role`/`id`, and every session
+ * check below requires `role`, so an invite token can never be replayed as a
+ * login -- and a session token, lacking `purpose`, can never register an
+ * account. Expiry is the only revocation short of removing the email from the
+ * allowlist, which handleRegister re-checks at redemption time.
+ */
+const INVITE_TTL = '48h';
+
+export async function generateInviteToken(email: string): Promise<string> {
+    return new SignJWT({ email, purpose: 'invite' })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setExpirationTime(INVITE_TTL)
+        .sign(SECRET);
+}
+
+/** Returns the invited email, or null if the token is not a valid, unexpired invite. */
+export async function verifyInviteToken(token: string): Promise<string | null> {
+    try {
+        const { payload } = await jwtVerify(token, SECRET, { algorithms: ['HS256'] });
+        if (payload.purpose !== 'invite' || typeof payload.email !== 'string') return null;
+        return payload.email;
+    } catch {
+        return null;
+    }
+}
+
 export async function generateAndSetCookie(req: BunRequest, userId: number, email: string, username: string) {
     const token = await generateToken(userId, email, username, 'student');
     req.cookies.set('sessionToken', token, cookieOptions);
@@ -65,6 +94,10 @@ export async function decodeCookie(req: BunRequest) {
         // leaving the algorithm to jose's defaults and a JWT "none"/alg-confusion
         // attempt to lose.
         const { payload } = await jwtVerify(token, SECRET, { algorithms: ['HS256'] });
+        // Only a student session may ride this cookie. Driver and invite tokens
+        // share the signing key, so without this a token copied from the driver
+        // app or an invite email would pass verifyUser.
+        if (payload.role !== 'student') return null;
         return payload;
     } catch {
         return null;
