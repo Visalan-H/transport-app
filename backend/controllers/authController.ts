@@ -1,7 +1,7 @@
 import { User } from '../services/userService';
 import { Otp, isOtpExpired } from '../services/otpService';
 import { sendOtpEmail } from '../utils/sendOtp';
-import { generateAndSetCookie, clearCookie, decodeCookie } from '../services/cookieService';
+import { generateAndSetCookie, clearCookie, decodeCookie, verifyInviteToken } from '../services/cookieService';
 import { AllowedEmail } from '../services/allowedEmailService';
 import { AccessRequest } from '../services/accessRequestService';
 import { isAdmin } from '../config/admins';
@@ -53,20 +53,37 @@ export const handleRequestAccess = async (req: BunRequest) => {
 export const handleRegister = async (req: BunRequest) => {
     const result = await validate(registerSchema, req);
     if (!result.ok) return result.response;
-    const { username, email, password, otp } = result.data;
+    const { username, password } = result.data;
+    let email: string;
 
-    const otpRecord = await Otp.findByEmail(email);
-    if (!otpRecord) return Response.json({ success: false, error: 'Send OTP first' }, { status: 400 });
+    if (result.data.method === 'invite') {
+        const invited = await verifyInviteToken(result.data.inviteToken);
+        if (!invited) {
+            return Response.json({ success: false, error: 'Invite link is invalid or expired' }, { status: 401 });
+        }
+        // The token proves the address, but not that it is still welcome: an
+        // admin removing the email after inviting must revoke the link too.
+        if (!isAdmin(invited) && !(await AllowedEmail.has(invited))) {
+            return Response.json({ success: false, error: 'Email not authorized' }, { status: 403 });
+        }
+        email = invited;
+    } else {
+        email = result.data.email;
+        const { otp } = result.data;
 
-    if (isOtpExpired(otpRecord.createdAt)) {
+        const otpRecord = await Otp.findByEmail(email);
+        if (!otpRecord) return Response.json({ success: false, error: 'Send OTP first' }, { status: 400 });
+
+        if (isOtpExpired(otpRecord.createdAt)) {
+            await Otp.delete(email);
+            return Response.json({ success: false, error: 'OTP expired. Please request a new one.' }, { status: 401 });
+        }
+
+        const otpMatched = await Bun.password.verify(otp, otpRecord.otpHash);
+        if (!otpMatched) return Response.json({ success: false, error: 'Invalid OTP' }, { status: 401 });
+
         await Otp.delete(email);
-        return Response.json({ success: false, error: 'OTP expired. Please request a new one.' }, { status: 401 });
     }
-
-    const otpMatched = await Bun.password.verify(otp, otpRecord.otpHash);
-    if (!otpMatched) return Response.json({ success: false, error: 'Invalid OTP' }, { status: 401 });
-
-    await Otp.delete(email);
 
     const passwordHash = await Bun.password.hash(password);
     const user = await User.create(username, email, passwordHash);

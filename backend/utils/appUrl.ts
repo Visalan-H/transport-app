@@ -1,4 +1,5 @@
 import { env } from '../config/env';
+import { generateInviteToken } from '../services/cookieService';
 
 /**
  * Public base URL of the app, for links in outbound email.
@@ -20,7 +21,7 @@ export function appBaseUrl(): string {
     return chosen.replace(/\/+$/, '');
 }
 
-/** Signup link that pre-fills the invited address. */
-export function signupUrl(email: string): string {
-    return `${appBaseUrl()}/signup?email=${encodeURIComponent(email)}`;
+/** Signup link carrying an invite token, so the invited student skips the OTP step. */
+export async function signupUrl(email: string): Promise<string> {
+    return `${appBaseUrl()}/signup?invite=${encodeURIComponent(await generateInviteToken(email))}`;
 }
