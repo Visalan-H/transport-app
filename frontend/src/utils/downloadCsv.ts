@@ -5,10 +5,16 @@ type Cell = string | number | null | undefined;
  * (double a field's quotes, wrap it when it holds a comma, quote or newline)
  * so an address or name can never break a column, and a leading BOM so Excel
  * opens it as UTF-8 rather than mangling non-ASCII.
+ *
+ * A field that starts with = + - @ or a tab/CR is prefixed with a quote so a
+ * spreadsheet treats it as text instead of a formula (CSV injection). The
+ * values here are validated usernames and emails, so nothing dangerous can
+ * reach this today; the guard is so that stays true if a freer column is added.
  */
 export function downloadCsv(filename: string, headers: string[], rows: Cell[][]): void {
     const esc = (v: Cell): string => {
-        const s = v == null ? '' : String(v);
+        let s = v == null ? '' : String(v);
+        if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
         return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const csv = [headers, ...rows].map((row) => row.map(esc).join(',')).join('\r\n');
