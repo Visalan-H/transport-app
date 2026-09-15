@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { adminApi, type AllowedEmail, type BulkAddResult, type Person } from '@/utils/adminApi';
+import { adminApi, type AccessRequest, type AllowedEmail, type BulkAddResult, type Person } from '@/utils/adminApi';
 import { useAuth } from '@/hooks/useAuth';
 import { parseEmailText } from '@/utils/parseEmailList';
 import { formatDate } from '@/utils/formatTime';
@@ -22,6 +22,9 @@ import {
     Upload,
     Search,
     Download,
+    Send,
+    X,
+    UserPlus,
 } from 'lucide-react';
 
 type Tab = 'invites' | 'students' | 'drivers';
@@ -45,6 +48,7 @@ export default function Admin() {
     const [tab, setTab] = useState<Tab>('invites');
 
     const [invites, setInvites] = useState<AllowedEmail[]>([]);
+    const [requests, setRequests] = useState<AccessRequest[]>([]);
     const [students, setStudents] = useState<Person[]>([]);
     const [drivers, setDrivers] = useState<Person[]>([]);
 
@@ -61,12 +65,14 @@ export default function Admin() {
     const refresh = useCallback(async () => {
         setError(null);
         try {
-            const [a, u, d] = await Promise.all([
+            const [a, r, u, d] = await Promise.all([
                 adminApi.listAllowedEmails(),
+                adminApi.listAccessRequests(),
                 adminApi.listUsers(),
                 adminApi.listDrivers(),
             ]);
             setInvites(a.data.emails ?? []);
+            setRequests(r.data.requests ?? []);
             setStudents(u.data.users ?? []);
             setDrivers(d.data.drivers ?? []);
         } catch (err) {
@@ -105,8 +111,14 @@ export default function Admin() {
         );
     }
 
-    const tabs: { id: Tab; label: string; icon: React.ReactNode; count: number }[] = [
-        { id: 'invites', label: 'Invites', icon: <MailCheck size={16} />, count: invites.length },
+    const tabs: { id: Tab; label: string; icon: React.ReactNode; count: number; pending?: number }[] = [
+        {
+            id: 'invites',
+            label: 'Invites',
+            icon: <MailCheck size={16} />,
+            count: invites.length,
+            pending: requests.length,
+        },
         { id: 'students', label: 'Students', icon: <Users size={16} />, count: students.length },
         { id: 'drivers', label: 'Drivers', icon: <Bus size={16} />, count: drivers.length },
     ];
@@ -148,6 +160,14 @@ export default function Admin() {
                             <span className="rounded-full bg-muted px-1.5 text-xs tabular-nums text-muted-foreground">
                                 {t.count}
                             </span>
+                            {t.pending ? (
+                                <span
+                                    className="rounded-full bg-amber-400/20 px-1.5 text-xs font-semibold tabular-nums text-amber-600 dark:text-amber-400"
+                                    title={`${t.pending} access request${t.pending === 1 ? '' : 's'} waiting`}
+                                >
+                                    +{t.pending}
+                                </span>
+                            ) : null}
                         </button>
                     ))}
                 </div>
@@ -165,7 +185,9 @@ export default function Admin() {
 
                 {issued && <IssuedPasswordPanel issued={issued} onDismiss={() => setIssued(null)} />}
 
-                {tab === 'invites' && <InvitesTab invites={invites} busy={busy} run={run} />}
+                {tab === 'invites' && (
+                    <InvitesTab invites={invites} requests={requests} students={students} busy={busy} run={run} />
+                )}
                 {tab === 'students' && (
                     <StudentsTab students={students} busy={busy} run={run} currentEmail={user?.email ?? ''} />
                 )}
@@ -274,15 +296,112 @@ function IssuedPasswordPanel({ issued, onDismiss }: { issued: Issued; onDismiss:
     );
 }
 
+// --- access requests --------------------------------------------------------
+
+function AccessRequestsCard({ requests, busy, run }: { requests: AccessRequest[]; busy: string | null; run: RunFn }) {
+    return (
+        <div className="rounded-2xl border border-amber-400/40 bg-amber-400/5 p-5 space-y-3">
+            <div className="flex items-center gap-2">
+                <UserPlus size={18} className="text-amber-600 dark:text-amber-400" />
+                <h2 className="font-semibold text-foreground">
+                    Access requests
+                    <span className="ml-2 rounded-full bg-amber-400/20 px-1.5 text-xs tabular-nums text-amber-600 dark:text-amber-400">
+                        {requests.length}
+                    </span>
+                </h2>
+            </div>
+            <p className="text-sm text-muted-foreground">
+                People who asked to join. Approving allowlists them and emails a signup link.
+            </p>
+            <ul className="divide-y divide-border/60">
+                {requests.map((r) => (
+                    <li key={r.id} className="flex items-center justify-between gap-3 py-2.5">
+                        <div className="min-w-0">
+                            <p className="truncate text-sm text-foreground">{r.email}</p>
+                            {formatDate(r.createdAt) && (
+                                <p className="truncate text-xs text-muted-foreground">
+                                    requested {formatDate(r.createdAt)}
+                                </p>
+                            )}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                            <Button
+                                type="button"
+                                onClick={() =>
+                                    void run(
+                                        `approve-${r.email}`,
+                                        () => adminApi.approveAccessRequest(r.email),
+                                        `Approved ${r.email} — invite emailed.`,
+                                    )
+                                }
+                                disabled={busy === `approve-${r.email}`}
+                                className="h-9 rounded-xl px-3"
+                            >
+                                {busy === `approve-${r.email}` ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                ) : (
+                                    <>
+                                        <Check size={16} />
+                                        <span className="ml-1 hidden sm:inline">Approve</span>
+                                    </>
+                                )}
+                            </Button>
+                            <button
+                                onClick={() =>
+                                    void run(
+                                        `reject-${r.email}`,
+                                        () => adminApi.rejectAccessRequest(r.email),
+                                        `Dismissed request from ${r.email}.`,
+                                    )
+                                }
+                                disabled={busy === `reject-${r.email}`}
+                                className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                                aria-label={`Reject ${r.email}`}
+                                title="Dismiss request"
+                            >
+                                {busy === `reject-${r.email}` ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                ) : (
+                                    <X size={16} />
+                                )}
+                            </button>
+                        </div>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
 // --- invites ----------------------------------------------------------------
 
-function InvitesTab({ invites, busy, run }: { invites: AllowedEmail[]; busy: string | null; run: RunFn }) {
+function InvitesTab({
+    invites,
+    requests,
+    students,
+    busy,
+    run,
+}: {
+    invites: AllowedEmail[];
+    requests: AccessRequest[];
+    students: Person[];
+    busy: string | null;
+    run: RunFn;
+}) {
     const [email, setEmail] = useState('');
     const [query, setQuery] = useState('');
 
+    // Who has actually completed signup, so a row can show "joined" vs still
+    // waiting. Cross-referenced client-side from the students list already loaded.
+    const joinedEmails = useMemo(() => new Set(students.map((s) => s.email.toLowerCase())), [students]);
+
     const add = async (e: React.FormEvent) => {
         e.preventDefault();
-        const ok = await run('add-invite', () => adminApi.addAllowedEmail(email), `${email} can now sign up.`);
+        const ok = await run(
+            'add-invite',
+            () => adminApi.addAllowedEmail(email),
+            `${email} can now sign up — invite emailed.`,
+        );
         if (ok) setEmail('');
     };
 
@@ -300,6 +419,8 @@ function InvitesTab({ invites, busy, run }: { invites: AllowedEmail[]; busy: str
 
     return (
         <div className="space-y-4">
+            {requests.length > 0 && <AccessRequestsCard requests={requests} busy={busy} run={run} />}
+
             <SectionCard>
                 <div className="space-y-1">
                     <h2 className="font-semibold text-foreground">Allow an email to sign up</h2>
@@ -349,35 +470,72 @@ function InvitesTab({ invites, busy, run }: { invites: AllowedEmail[]; busy: str
                     <EmptyRow text="No emails match your search." />
                 ) : (
                     <ul className="divide-y divide-border/60">
-                        {filtered.map((row) => (
-                            <li key={row.id} className="flex items-center justify-between gap-3 py-2.5">
-                                <div className="min-w-0">
-                                    <p className="truncate text-sm text-foreground">{row.email}</p>
-                                    <p className="truncate text-xs text-muted-foreground">
-                                        {row.addedBy ? `added by ${row.addedBy}` : 'added'}
-                                        {formatDate(row.createdAt) && ` · ${formatDate(row.createdAt)}`}
-                                    </p>
-                                </div>
-                                <button
-                                    onClick={() =>
-                                        void run(
-                                            `rm-invite-${row.email}`,
-                                            () => adminApi.removeAllowedEmail(row.email),
-                                            `${row.email} can no longer sign up.`,
-                                        )
-                                    }
-                                    disabled={busy === `rm-invite-${row.email}`}
-                                    className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-                                    aria-label={`Remove ${row.email}`}
-                                >
-                                    {busy === `rm-invite-${row.email}` ? (
-                                        <Loader2 className="size-4 animate-spin" />
-                                    ) : (
-                                        <Trash2 size={16} />
-                                    )}
-                                </button>
-                            </li>
-                        ))}
+                        {filtered.map((row) => {
+                            const joined = joinedEmails.has(row.email.toLowerCase());
+                            return (
+                                <li key={row.id} className="flex items-center justify-between gap-3 py-2.5">
+                                    <div className="min-w-0">
+                                        <p className="flex items-center gap-2 truncate text-sm text-foreground">
+                                            <span className="truncate">{row.email}</span>
+                                            {joined ? (
+                                                <span className="shrink-0 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                                                    joined
+                                                </span>
+                                            ) : (
+                                                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                                    not signed up
+                                                </span>
+                                            )}
+                                        </p>
+                                        <p className="truncate text-xs text-muted-foreground">
+                                            {row.addedBy ? `added by ${row.addedBy}` : 'added'}
+                                            {formatDate(row.createdAt) && ` · ${formatDate(row.createdAt)}`}
+                                        </p>
+                                    </div>
+                                    <div className="flex shrink-0 items-center gap-1">
+                                        {!joined && (
+                                            <button
+                                                onClick={() =>
+                                                    void run(
+                                                        `invite-${row.email}`,
+                                                        () => adminApi.inviteEmails([row.email]),
+                                                        `Invite re-sent to ${row.email}.`,
+                                                    )
+                                                }
+                                                disabled={busy === `invite-${row.email}`}
+                                                className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                                                aria-label={`Resend invite to ${row.email}`}
+                                                title="Resend invite email"
+                                            >
+                                                {busy === `invite-${row.email}` ? (
+                                                    <Loader2 className="size-4 animate-spin" />
+                                                ) : (
+                                                    <Send size={16} />
+                                                )}
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() =>
+                                                void run(
+                                                    `rm-invite-${row.email}`,
+                                                    () => adminApi.removeAllowedEmail(row.email),
+                                                    `${row.email} can no longer sign up.`,
+                                                )
+                                            }
+                                            disabled={busy === `rm-invite-${row.email}`}
+                                            className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                                            aria-label={`Remove ${row.email}`}
+                                        >
+                                            {busy === `rm-invite-${row.email}` ? (
+                                                <Loader2 className="size-4 animate-spin" />
+                                            ) : (
+                                                <Trash2 size={16} />
+                                            )}
+                                        </button>
+                                    </div>
+                                </li>
+                            );
+                        })}
                     </ul>
                 )}
                 <p className="text-xs text-muted-foreground">
@@ -393,7 +551,7 @@ function BulkInviteCard({ busy, run }: { busy: string | null; run: RunFn }) {
     const [text, setText] = useState('');
     const [fileError, setFileError] = useState<string | null>(null);
     const [importing, setImporting] = useState(false);
-    const [result, setResult] = useState<BulkAddResult | null>(null);
+    const [result, setResult] = useState<(BulkAddResult & { invited?: { sent: number; failed: number } }) | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const parsed = useMemo(() => parseEmailText(text), [text]);
@@ -436,7 +594,17 @@ function BulkInviteCard({ busy, run }: { busy: string | null; run: RunFn }) {
         setFileError(null);
         const ok = await run('bulk-invite', async () => {
             const res = await adminApi.bulkAddAllowedEmails(parsed.valid);
-            setResult(res.data);
+            const added = res.data.added;
+
+            // Email the newly added students their signup link. Sent in chunks
+            // so a few hundred at once ride several short requests instead of
+            // one that would outlast the proxy timeout.
+            let invited = { sent: 0, failed: 0 };
+            for (let i = 0; i < added.length; i += 50) {
+                const r = await adminApi.inviteEmails(added.slice(i, i + 50));
+                invited = { sent: invited.sent + r.data.sent.length, failed: invited.failed + r.data.failed.length };
+            }
+            setResult({ ...res.data, invited: added.length > 0 ? invited : undefined });
         });
         if (ok) setText('');
     };
@@ -533,6 +701,12 @@ function BulkInviteCard({ busy, run }: { busy: string | null; run: RunFn }) {
                         {result.alreadyPresent.length > 0 && `, ${result.alreadyPresent.length} already invited`}
                         {result.invalid.length > 0 && `, ${result.invalid.length} rejected`}.
                     </p>
+                    {result.invited && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            {result.invited.sent} invite{result.invited.sent === 1 ? '' : 's'} emailed
+                            {result.invited.failed > 0 && `, ${result.invited.failed} couldn't be sent`}.
+                        </p>
+                    )}
                     {result.invalid.length > 0 && (
                         <p className="mt-1 text-xs text-muted-foreground">
                             Rejected by the server: {result.invalid.join(', ')}

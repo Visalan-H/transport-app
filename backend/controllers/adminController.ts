@@ -1,8 +1,10 @@
 import type { BunRequest } from 'bun';
 import { AllowedEmail } from '../services/allowedEmailService';
+import { AccessRequest } from '../services/accessRequestService';
 import { Driver } from '../services/driverService';
 import { User } from '../services/userService';
 import { decodeCookie } from '../services/cookieService';
+import { sendInviteEmail, sendInviteEmails } from '../utils/sendInvite';
 import { validate } from '../utils/validate';
 import {
     emailSchema,
@@ -30,9 +32,41 @@ export const handleAddAllowedEmail = async (req: BunRequest) => {
 
     const added = await AllowedEmail.add(result.data.email, await actingAdmin(req));
 
+    // A newly allowed address gets an invite email so being added is not a
+    // silent state the student never learns about. A re-add of someone already
+    // present is a no-op and sends nothing (use the invite endpoint to resend).
+    // The email is best-effort: a mail failure must not fail the allowlisting,
+    // which is the operation that actually matters and is already done.
+    let invited = false;
+    if (added) {
+        try {
+            await sendInviteEmail(result.data.email);
+            invited = true;
+        } catch {
+            invited = false;
+        }
+    }
+
     // Already present is a no-op, not a failure — an admin re-inviting someone
     // should see success, not a confusing error.
-    return Response.json({ success: true, added: Boolean(added), email: result.data.email });
+    return Response.json({ success: true, added: Boolean(added), invited, email: result.data.email });
+};
+
+export const handleInviteEmails = async (req: BunRequest) => {
+    const result = await validate(bulkAllowedEmailsSchema, req);
+    if (!result.ok) return result.response;
+
+    // Only send to addresses actually on the allowlist -- the invite links to
+    // signup, which would just bounce off the "not authorized" gate otherwise.
+    // Validated and lowercased per entry, matching the bulk-add path.
+    const targets: string[] = [];
+    for (const raw of result.data.emails) {
+        const parsed = emailSchema.safeParse(raw.trim());
+        if (parsed.success && (await AllowedEmail.has(parsed.data))) targets.push(parsed.data);
+    }
+
+    const { sent, failed } = await sendInviteEmails([...new Set(targets)]);
+    return Response.json({ success: true, sent, failed });
 };
 
 export const handleBulkAddAllowedEmails = async (req: BunRequest) => {
@@ -99,6 +133,46 @@ export const handleRemoveUser = async (req: BunRequest) => {
 
     const removed = await User.delete(email);
     if (!removed) return Response.json({ success: false, error: 'No such user' }, { status: 404 });
+
+    return Response.json({ success: true });
+};
+
+// --- access requests --------------------------------------------------------
+
+export const handleListAccessRequests = async () => {
+    const requests = await AccessRequest.list();
+    return Response.json({ success: true, requests });
+};
+
+export const handleApproveAccessRequest = async (req: BunRequest) => {
+    const result = await validate(emailOnlySchema, req);
+    if (!result.ok) return result.response;
+    const { email } = result.data;
+
+    // Approving is exactly an allowlist add: move the address across, email the
+    // invite (best-effort, as in handleAddAllowedEmail), then clear the request
+    // regardless so an approved row never lingers in the queue.
+    const added = await AllowedEmail.add(email, await actingAdmin(req));
+    let invited = false;
+    if (added) {
+        try {
+            await sendInviteEmail(email);
+            invited = true;
+        } catch {
+            invited = false;
+        }
+    }
+    await AccessRequest.remove(email);
+
+    return Response.json({ success: true, invited });
+};
+
+export const handleRejectAccessRequest = async (req: BunRequest) => {
+    const result = await validate(emailOnlySchema, req);
+    if (!result.ok) return result.response;
+
+    const removed = await AccessRequest.remove(result.data.email);
+    if (!removed) return Response.json({ success: false, error: 'No such request' }, { status: 404 });
 
     return Response.json({ success: true });
 };

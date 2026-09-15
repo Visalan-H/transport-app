@@ -2,7 +2,11 @@ import {
     handleListAllowedEmails,
     handleAddAllowedEmail,
     handleBulkAddAllowedEmails,
+    handleInviteEmails,
     handleRemoveAllowedEmail,
+    handleListAccessRequests,
+    handleApproveAccessRequest,
+    handleRejectAccessRequest,
     handleListUsers,
     handleRemoveUser,
     handleListDrivers,
@@ -24,6 +28,16 @@ export const adminRoutes = {
     },
     '/admin/allowed-emails/bulk': {
         POST: verifyAdmin(handleBulkAddAllowedEmails),
+    },
+    '/admin/allowed-emails/invite': {
+        POST: verifyAdmin(handleInviteEmails),
+    },
+    '/admin/access-requests': {
+        GET: verifyAdmin(handleListAccessRequests),
+        DELETE: verifyAdmin(handleRejectAccessRequest),
+    },
+    '/admin/access-requests/approve': {
+        POST: verifyAdmin(handleApproveAccessRequest),
     },
     '/admin/users': {
         GET: verifyAdmin(handleListUsers),

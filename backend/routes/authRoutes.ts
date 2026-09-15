@@ -1,4 +1,11 @@
-import { handleSendOtp, handleRegister, handleLogin, handleGetMe, handleLogout } from '../controllers/authController';
+import {
+    handleSendOtp,
+    handleRegister,
+    handleLogin,
+    handleGetMe,
+    handleLogout,
+    handleRequestAccess,
+} from '../controllers/authController';
 import { withRateLimit } from '../middleware/rateLimiter';
 
 /**
@@ -14,6 +21,7 @@ import { withRateLimit } from '../middleware/rateLimiter';
  */
 export const authRoutes = {
     '/auth/send-otp': { POST: withRateLimit(handleSendOtp, { points: 60, duration: 300 }) },
+    '/auth/request-access': { POST: withRateLimit(handleRequestAccess, { points: 30, duration: 300 }) },
     '/auth/register': { POST: withRateLimit(handleRegister, { points: 100, duration: 300 }) },
     '/auth/login': { POST: withRateLimit(handleLogin, { points: 100, duration: 300 }) },
     '/auth/me': { GET: handleGetMe },

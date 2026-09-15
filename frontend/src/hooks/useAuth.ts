@@ -18,6 +18,7 @@ export interface AuthContextValue {
     user: User | null;
     loading: boolean;
     sendOtp: (email: string) => Promise<{ ok: boolean; message?: string }>;
+    requestAccess: (email: string) => Promise<{ ok: boolean; message?: string }>;
     login: (email: string, password: string) => Promise<{ ok: boolean; message?: string }>;
     register: (
         username: string,

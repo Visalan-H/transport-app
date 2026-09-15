@@ -3,11 +3,12 @@ import { Otp, isOtpExpired } from '../services/otpService';
 import { sendOtpEmail } from '../utils/sendOtp';
 import { generateAndSetCookie, clearCookie, decodeCookie } from '../services/cookieService';
 import { AllowedEmail } from '../services/allowedEmailService';
+import { AccessRequest } from '../services/accessRequestService';
 import { isAdmin } from '../config/admins';
 import { randomInt } from 'crypto';
 import type { BunRequest } from 'bun';
 import { validate } from '../utils/validate';
-import { sendOtpSchema, loginSchema, registerSchema } from '../validations/authValidations';
+import { sendOtpSchema, loginSchema, registerSchema, requestAccessSchema } from '../validations/authValidations';
 
 export const handleSendOtp = async (req: BunRequest) => {
     const result = await validate(sendOtpSchema, req);
@@ -32,6 +33,21 @@ export const handleSendOtp = async (req: BunRequest) => {
     } catch {
         return Response.json({ success: false, error: 'Failed to send email' }, { status: 500 });
     }
+};
+
+export const handleRequestAccess = async (req: BunRequest) => {
+    const result = await validate(requestAccessSchema, req);
+    if (!result.ok) return result.response;
+    const { email } = result.data;
+
+    // Response is intentionally identical whichever branch runs, so this
+    // endpoint can't be used to probe who is already allowed or registered.
+    // Someone already allowed or already signed up needs no queue entry, so we
+    // simply skip inserting one; anyone else is queued for an admin to review.
+    const alreadyIn = isAdmin(email) || (await AllowedEmail.has(email)) || Boolean(await User.findByEmail(email));
+    if (!alreadyIn) await AccessRequest.add(email);
+
+    return Response.json({ success: true });
 };
 
 export const handleRegister = async (req: BunRequest) => {

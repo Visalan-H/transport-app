@@ -32,6 +32,11 @@ const schema = z.object({
     ADMIN_EMAILS: z.string().default(''),
     SIM_API_KEY: z.string().optional(),
 
+    // Public base URL of the app, used to build the "sign up here" link in
+    // invite emails. Optional: when unset it is derived from ALLOWED_ORIGINS
+    // (see utils/appUrl.ts), so an existing deployment needs no new variable.
+    APP_URL: z.string().optional(),
+
     NODE_ENV: z.string().default('development'),
     LOG_LEVEL: z
         .string()

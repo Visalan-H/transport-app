@@ -4,6 +4,7 @@ import { users } from '../models/user';
 import { otps } from '../models/otp';
 import { drivers } from '../models/driver';
 import { allowedEmails } from '../models/allowedEmail';
+import { accessRequests } from '../models/accessRequest';
 import { env } from './env';
 
 const connectionString = env.NEON_POSTGRES_URI;
@@ -64,6 +65,14 @@ await client`
   )
 `;
 
+await client`
+  CREATE TABLE IF NOT EXISTS access_requests (
+    id SERIAL PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ DEFAULT now()
+  )
+`;
+
 // Emails used to be stored in whatever case a request sent them in, while
 // AllowedEmail.has() (and now every service method) compares lowercased.
 // That mismatch is how a single allowlisted address could mint unlimited
@@ -93,6 +102,7 @@ await client`
     await normalize('users');
     await normalize('drivers');
     await normalize('allowed_emails');
+    await normalize('access_requests');
 
     const otpDupes =
         await client`DELETE FROM otps a USING otps b WHERE lower(a.email) = lower(b.email) AND a.id < b.id`;
