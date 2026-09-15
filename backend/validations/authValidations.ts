@@ -9,6 +9,10 @@ export const sendOtpSchema = z.object({
     email: emailSchema,
 });
 
+export const requestAccessSchema = z.object({
+    email: emailSchema,
+});
+
 export const loginSchema = z.object({
     email: emailSchema,
     password: z.string().min(1, 'Password is required'),

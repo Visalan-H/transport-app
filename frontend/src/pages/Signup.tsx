@@ -1,30 +1,46 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Eye, EyeOff, Mail, Lock, User, KeyRound, ArrowLeft } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Mail, Lock, User, KeyRound, ArrowLeft, Check } from 'lucide-react';
 
 type Step = 'details' | 'verify';
 
 export default function Signup() {
+    const [searchParams] = useSearchParams();
     const [step, setStep] = useState<Step>('details');
     const [username, setUsername] = useState('');
-    const [email, setEmail] = useState('');
+    // Pre-filled from an invite link (?email=...) so an invited student doesn't
+    // retype the address the admin already allowlisted.
+    const [email, setEmail] = useState(() => searchParams.get('email')?.trim() ?? '');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [otp, setOtp] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // Shown when the address isn't on the allowlist: instead of a dead end, the
+    // student can ask the admin to add them.
+    const [notAuthorized, setNotAuthorized] = useState(false);
+    const [requestState, setRequestState] = useState<'idle' | 'sending' | 'sent'>('idle');
 
-    const { sendOtp, register } = useAuth();
+    const { sendOtp, requestAccess, register } = useAuth();
     const navigate = useNavigate();
+
+    // Editing the address drops any prior not-authorized notice so a corrected
+    // email gets a clean attempt.
+    const onEmailChange = (value: string) => {
+        setEmail(value);
+        setNotAuthorized(false);
+        setRequestState('idle');
+    };
 
     const handleSendOtp = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
+        setNotAuthorized(false);
 
         if (!username.trim()) {
             setError('Username is required');
@@ -36,11 +52,21 @@ export default function Signup() {
 
         if (result.ok) {
             setStep('verify');
+        } else if (/not authorized/i.test(result.message ?? '')) {
+            setNotAuthorized(true);
         } else {
             setError(result.message || 'Failed to send OTP');
         }
 
         setIsLoading(false);
+    };
+
+    const handleRequestAccess = async () => {
+        setRequestState('sending');
+        await requestAccess(email);
+        // Always land on "sent": the endpoint answers identically whether or not
+        // the address was queued, so the UI can't imply anything about it either.
+        setRequestState('sent');
     };
 
     const handleVerifyAndRegister = async (e: React.FormEvent) => {
@@ -118,7 +144,7 @@ export default function Signup() {
                                         type="email"
                                         placeholder="you@example.com"
                                         value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
+                                        onChange={(e) => onEmailChange(e.target.value)}
                                         required
                                         autoComplete="email"
                                         className="h-11 rounded-xl border-border/50 bg-background/60 pl-11 text-base transition-all focus:bg-background focus:border-foreground/25 focus:shadow-lg focus:shadow-foreground/5"
@@ -134,6 +160,39 @@ export default function Signup() {
                                     </span>
                                 </div>
                             )}
+
+                            {notAuthorized &&
+                                (requestState === 'sent' ? (
+                                    <div className="animate-in fade-in slide-in-from-top-2 rounded-xl border border-border/60 bg-muted/50 px-4 py-3 text-base text-foreground">
+                                        <span className="flex items-center gap-2">
+                                            <Check className="size-4 text-emerald-500" />
+                                            Request sent. An admin will add you soon — you'll get an email when you can
+                                            sign up.
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <div className="animate-in fade-in slide-in-from-top-2 space-y-3 rounded-xl border border-border/60 bg-muted/40 px-4 py-3 text-base">
+                                        <p className="text-muted-foreground">
+                                            <span className="font-medium text-foreground">{email}</span> isn't on the
+                                            transport list yet. Request access and an admin will review it.
+                                        </p>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => void handleRequestAccess()}
+                                            disabled={requestState === 'sending'}
+                                            className="h-10 w-full rounded-xl font-semibold"
+                                        >
+                                            {requestState === 'sending' ? (
+                                                <span className="flex items-center gap-2">
+                                                    <Loader2 className="size-4 animate-spin" /> Sending…
+                                                </span>
+                                            ) : (
+                                                'Request access'
+                                            )}
+                                        </Button>
+                                    </div>
+                                ))}
 
                             <Button
                                 type="submit"

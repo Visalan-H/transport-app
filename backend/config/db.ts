@@ -4,6 +4,7 @@ import { users } from '../models/user';
 import { otps } from '../models/otp';
 import { drivers } from '../models/driver';
 import { allowedEmails } from '../models/allowedEmail';
+import { accessRequests } from '../models/accessRequest';
 import { env } from './env';
 
 const connectionString = env.NEON_POSTGRES_URI;
@@ -64,6 +65,14 @@ await client`
   )
 `;
 
+await client`
+  CREATE TABLE IF NOT EXISTS access_requests (
+    id SERIAL PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ DEFAULT now()
+  )
+`;
+
 // Emails used to be stored in whatever case a request sent them in, while
 // AllowedEmail.has() (and now every service method) compares lowercased.
 // That mismatch is how a single allowlisted address could mint unlimited
@@ -93,6 +102,7 @@ await client`
     await normalize('users');
     await normalize('drivers');
     await normalize('allowed_emails');
+    await normalize('access_requests');
 
     const otpDupes =
         await client`DELETE FROM otps a USING otps b WHERE lower(a.email) = lower(b.email) AND a.id < b.id`;
@@ -113,22 +123,9 @@ await client`CREATE UNIQUE INDEX IF NOT EXISTS otps_email_key ON otps (email)`;
 await client`DROP INDEX IF EXISTS otps_email_idx`;
 await client`CREATE INDEX IF NOT EXISTS otps_created_at_idx ON otps (created_at)`;
 
-// The signup allowlist used to be a hardcoded Set in config/validEmails.ts,
-// which meant adding one student required a rebuild and redeploy. It now lives
-// in allowed_emails. Seed the old list on first run so an existing deployment
-// does not suddenly reject the people it already accepted. Only runs while the
-// table is empty, so removing a seeded address stays removed.
-{
-    const rows = await client<{ count: string }[]>`SELECT COUNT(*) AS count FROM allowed_emails`;
-    if (Number(rows[0]?.count ?? 0) === 0) {
-        await client`
-            INSERT INTO allowed_emails (email, added_by)
-            VALUES ('visalanprivate@gmail.com', 'seed:migration'),
-                   ('csroopak333@gmail.com', 'seed:migration')
-            ON CONFLICT (email) DO NOTHING
-        `;
-    }
-}
+// The allowlist is managed entirely through the admin page now. Signup bootstrap
+// no longer needs a seeded student: ADMIN_EMAILS is exempt from the allowlist,
+// so an admin can always sign in and add the first paid student themselves.
 
 export const db = drizzle(client, {
     schema: { users, otps, drivers, allowedEmails },

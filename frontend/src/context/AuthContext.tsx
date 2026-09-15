@@ -64,6 +64,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    const requestAccess = async (email: string): Promise<{ ok: boolean; message?: string }> => {
+        try {
+            const res = await api.post<AuthResponse>('/auth/request-access', { email });
+            return { ok: res.status >= 200 && res.status < 300, message: res.data?.message };
+        } catch (err) {
+            return { ok: false, message: getErrMessage(err as ApiError, 'Network error') };
+        }
+    };
+
     const login = async (email: string, password: string): Promise<{ ok: boolean; message?: string }> => {
         try {
             const res = await api.post<AuthResponse>('/auth/login', { email, password });
@@ -111,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, sendOtp, login, register, logout }}>
+        <AuthContext.Provider value={{ user, loading, sendOtp, requestAccess, login, register, logout }}>
             {children}
         </AuthContext.Provider>
     );

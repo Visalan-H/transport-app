@@ -34,11 +34,29 @@ export interface BulkAddResult {
     invalid: string[];
 }
 
+export interface AccessRequest {
+    id: number;
+    email: string;
+    createdAt: string | null;
+}
+
+export interface InviteResult {
+    sent: string[];
+    failed: string[];
+}
+
 export const adminApi = {
     listAllowedEmails: () => api.get<{ emails: AllowedEmail[] }>(`${PREFIX}/allowed-emails`),
-    addAllowedEmail: (email: string) => api.post<{ added: boolean }>(`${PREFIX}/allowed-emails`, { email }),
+    addAllowedEmail: (email: string) =>
+        api.post<{ added: boolean; invited: boolean }>(`${PREFIX}/allowed-emails`, { email }),
     bulkAddAllowedEmails: (emails: string[]) => api.post<BulkAddResult>(`${PREFIX}/allowed-emails/bulk`, { emails }),
+    inviteEmails: (emails: string[]) => api.post<InviteResult>(`${PREFIX}/allowed-emails/invite`, { emails }),
     removeAllowedEmail: (email: string) => api.delete(`${PREFIX}/allowed-emails`, { email }),
+
+    listAccessRequests: () => api.get<{ requests: AccessRequest[] }>(`${PREFIX}/access-requests`),
+    approveAccessRequest: (email: string) =>
+        api.post<{ invited: boolean }>(`${PREFIX}/access-requests/approve`, { email }),
+    rejectAccessRequest: (email: string) => api.delete(`${PREFIX}/access-requests`, { email }),
 
     listUsers: () => api.get<{ users: Person[] }>(`${PREFIX}/users`),
     removeUser: (email: string) => api.delete(`${PREFIX}/users`, { email }),
