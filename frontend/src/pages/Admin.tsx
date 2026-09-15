@@ -6,9 +6,27 @@ import { Textarea } from '@/components/ui/textarea';
 import { adminApi, type AllowedEmail, type BulkAddResult, type Person } from '@/utils/adminApi';
 import { useAuth } from '@/hooks/useAuth';
 import { parseEmailText } from '@/utils/parseEmailList';
-import { Loader2, Plus, Trash2, KeyRound, Copy, Check, MailCheck, Users, Bus, RefreshCw, Upload } from 'lucide-react';
+import { formatDate } from '@/utils/formatTime';
+import { downloadCsv } from '@/utils/downloadCsv';
+import {
+    Loader2,
+    Plus,
+    Trash2,
+    KeyRound,
+    Copy,
+    Check,
+    MailCheck,
+    Users,
+    Bus,
+    RefreshCw,
+    Upload,
+    Search,
+    Download,
+} from 'lucide-react';
 
 type Tab = 'invites' | 'students' | 'drivers';
+
+type Issued = { email: string; password: string };
 
 const errText = (err: unknown, fallback: string): string => {
     const e = err as { data?: { error?: string }; response?: { data?: { error?: string } }; message?: string };
@@ -34,6 +52,11 @@ export default function Admin() {
     const [busy, setBusy] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
+
+    // A freshly issued driver password lives at the page level, not inside the
+    // Drivers tab: the plaintext exists nowhere else, so it must not vanish the
+    // moment an admin flicks to another tab before copying it.
+    const [issued, setIssued] = useState<Issued | null>(null);
 
     const refresh = useCallback(async () => {
         setError(null);
@@ -140,11 +163,13 @@ export default function Admin() {
                     </div>
                 )}
 
+                {issued && <IssuedPasswordPanel issued={issued} onDismiss={() => setIssued(null)} />}
+
                 {tab === 'invites' && <InvitesTab invites={invites} busy={busy} run={run} />}
                 {tab === 'students' && (
                     <StudentsTab students={students} busy={busy} run={run} currentEmail={user?.email ?? ''} />
                 )}
-                {tab === 'drivers' && <DriversTab drivers={drivers} busy={busy} run={run} />}
+                {tab === 'drivers' && <DriversTab drivers={drivers} busy={busy} run={run} onIssued={setIssued} />}
             </div>
         </div>
     );
@@ -160,16 +185,118 @@ function EmptyRow({ text }: { text: string }) {
     return <p className="py-6 text-center text-sm text-muted-foreground">{text}</p>;
 }
 
+/** Case-insensitive substring match across a row's fields, for the list search. */
+const matchesQuery = (query: string, ...fields: (string | null | undefined)[]): boolean => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return fields.some((f) => f?.toLowerCase().includes(q));
+};
+
+function SearchExportBar({
+    query,
+    onQuery,
+    placeholder,
+    onExport,
+    exportDisabled,
+}: {
+    query: string;
+    onQuery: (v: string) => void;
+    placeholder: string;
+    onExport: () => void;
+    exportDisabled: boolean;
+}) {
+    return (
+        <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                    value={query}
+                    onChange={(e) => onQuery(e.target.value)}
+                    placeholder={placeholder}
+                    className="h-10 rounded-xl pl-9"
+                />
+            </div>
+            <Button
+                type="button"
+                variant="outline"
+                onClick={onExport}
+                disabled={exportDisabled}
+                className="h-10 shrink-0 rounded-xl px-3"
+                aria-label="Export CSV"
+            >
+                <Download size={16} />
+                <span className="ml-1.5 hidden sm:inline">Export</span>
+            </Button>
+        </div>
+    );
+}
+
+/**
+ * A driver password shown once, at the page level, after a create or reset.
+ * Keeps its own "copied" flash so copying doesn't re-render the whole page.
+ */
+function IssuedPasswordPanel({ issued, onDismiss }: { issued: Issued; onDismiss: () => void }) {
+    const [copied, setCopied] = useState(false);
+
+    const copy = async () => {
+        try {
+            await navigator.clipboard.writeText(issued.password);
+            setCopied(true);
+        } catch {
+            setCopied(false);
+        }
+    };
+
+    return (
+        <div className="rounded-2xl border border-border bg-muted/40 p-5 space-y-3">
+            <div className="space-y-1">
+                <h2 className="font-semibold text-foreground">Password for {issued.email}</h2>
+                <p className="text-sm text-muted-foreground">
+                    Copy this now — it is stored only as a hash and cannot be shown again. Reset it if it gets lost.
+                </p>
+            </div>
+            <div className="flex items-center gap-2">
+                <code className="flex-1 overflow-x-auto rounded-xl border border-border/60 bg-background px-4 py-3 font-mono text-base text-foreground">
+                    {issued.password}
+                </code>
+                <Button onClick={() => void copy()} className="h-11 shrink-0 rounded-xl px-4">
+                    {copied ? <Check size={16} /> : <Copy size={16} />}
+                    <span className="ml-1 hidden sm:inline">{copied ? 'Copied' : 'Copy'}</span>
+                </Button>
+            </div>
+            <button
+                onClick={onDismiss}
+                className="text-sm text-muted-foreground underline transition-colors hover:text-foreground"
+            >
+                Done
+            </button>
+        </div>
+    );
+}
+
 // --- invites ----------------------------------------------------------------
 
 function InvitesTab({ invites, busy, run }: { invites: AllowedEmail[]; busy: string | null; run: RunFn }) {
     const [email, setEmail] = useState('');
+    const [query, setQuery] = useState('');
 
     const add = async (e: React.FormEvent) => {
         e.preventDefault();
         const ok = await run('add-invite', () => adminApi.addAllowedEmail(email), `${email} can now sign up.`);
         if (ok) setEmail('');
     };
+
+    const filtered = useMemo(
+        () => invites.filter((row) => matchesQuery(query, row.email, row.addedBy)),
+        [invites, query],
+    );
+
+    const exportCsv = () =>
+        downloadCsv(
+            'allowed-emails.csv',
+            ['Email', 'Added by', 'Added on'],
+            invites.map((row) => [row.email, row.addedBy, formatDate(row.createdAt)]),
+        );
 
     return (
         <div className="space-y-4">
@@ -207,17 +334,29 @@ function InvitesTab({ invites, busy, run }: { invites: AllowedEmail[]; busy: str
 
             <SectionCard>
                 <h2 className="font-semibold text-foreground">Allowed emails</h2>
+                {invites.length > 0 && (
+                    <SearchExportBar
+                        query={query}
+                        onQuery={setQuery}
+                        placeholder="Search emails…"
+                        onExport={exportCsv}
+                        exportDisabled={invites.length === 0}
+                    />
+                )}
                 {invites.length === 0 ? (
                     <EmptyRow text="Nobody is allowed to sign up yet." />
+                ) : filtered.length === 0 ? (
+                    <EmptyRow text="No emails match your search." />
                 ) : (
                     <ul className="divide-y divide-border/60">
-                        {invites.map((row) => (
+                        {filtered.map((row) => (
                             <li key={row.id} className="flex items-center justify-between gap-3 py-2.5">
                                 <div className="min-w-0">
                                     <p className="truncate text-sm text-foreground">{row.email}</p>
-                                    {row.addedBy && (
-                                        <p className="truncate text-xs text-muted-foreground">added by {row.addedBy}</p>
-                                    )}
+                                    <p className="truncate text-xs text-muted-foreground">
+                                        {row.addedBy ? `added by ${row.addedBy}` : 'added'}
+                                        {formatDate(row.createdAt) && ` · ${formatDate(row.createdAt)}`}
+                                    </p>
                                 </div>
                                 <button
                                     onClick={() =>
@@ -418,6 +557,17 @@ function StudentsTab({
     run: RunFn;
     currentEmail: string;
 }) {
+    const [query, setQuery] = useState('');
+
+    const filtered = useMemo(() => students.filter((s) => matchesQuery(query, s.username, s.email)), [students, query]);
+
+    const exportCsv = () =>
+        downloadCsv(
+            'students.csv',
+            ['Name', 'Email', 'Signed up'],
+            students.map((s) => [s.username, s.email, formatDate(s.createdAt)]),
+        );
+
     return (
         <SectionCard>
             <div className="space-y-1">
@@ -426,11 +576,22 @@ function StudentsTab({
                     People who completed signup. Removing someone deletes their account and signs them out.
                 </p>
             </div>
+            {students.length > 0 && (
+                <SearchExportBar
+                    query={query}
+                    onQuery={setQuery}
+                    placeholder="Search name or email…"
+                    onExport={exportCsv}
+                    exportDisabled={students.length === 0}
+                />
+            )}
             {students.length === 0 ? (
                 <EmptyRow text="No students have signed up yet." />
+            ) : filtered.length === 0 ? (
+                <EmptyRow text="No students match your search." />
             ) : (
                 <ul className="divide-y divide-border/60">
-                    {students.map((s) => {
+                    {filtered.map((s) => {
                         const isSelf = s.email.toLowerCase() === currentEmail.toLowerCase();
                         return (
                             <li key={s.id} className="flex items-center justify-between gap-3 py-2.5">
@@ -439,7 +600,10 @@ function StudentsTab({
                                         {s.username}
                                         {isSelf && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
                                     </p>
-                                    <p className="truncate text-xs text-muted-foreground">{s.email}</p>
+                                    <p className="truncate text-xs text-muted-foreground">
+                                        {s.email}
+                                        {formatDate(s.createdAt) && ` · joined ${formatDate(s.createdAt)}`}
+                                    </p>
                                 </div>
                                 <button
                                     onClick={() => {
@@ -472,22 +636,38 @@ function StudentsTab({
 
 // --- drivers ----------------------------------------------------------------
 
-function DriversTab({ drivers, busy, run }: { drivers: Person[]; busy: string | null; run: RunFn }) {
+function DriversTab({
+    drivers,
+    busy,
+    run,
+    onIssued,
+}: {
+    drivers: Person[];
+    busy: string | null;
+    run: RunFn;
+    onIssued: (issued: Issued) => void;
+}) {
     const [email, setEmail] = useState('');
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-    // Shown once after a create or reset — the plaintext exists nowhere else,
-    // so the admin has to hand it over before navigating away.
-    const [issued, setIssued] = useState<{ email: string; password: string } | null>(null);
-    const [copied, setCopied] = useState(false);
+    const [query, setQuery] = useState('');
+
+    const filtered = useMemo(() => drivers.filter((d) => matchesQuery(query, d.username, d.email)), [drivers, query]);
+
+    const exportCsv = () =>
+        downloadCsv(
+            'drivers.csv',
+            ['Name', 'Email', 'Created'],
+            drivers.map((d) => [d.username, d.email, formatDate(d.createdAt)]),
+        );
 
     const create = async (e: React.FormEvent) => {
         e.preventDefault();
         const pw = password || generatePassword();
         const ok = await run('create-driver', () => adminApi.createDriver(email, username, pw));
         if (ok) {
-            setIssued({ email, password: pw });
-            setCopied(false);
+            // Surface the plaintext at the page level so it survives a tab switch.
+            onIssued({ email, password: pw });
             setEmail('');
             setUsername('');
             setPassword('');
@@ -497,51 +677,11 @@ function DriversTab({ drivers, busy, run }: { drivers: Person[]; busy: string | 
     const reset = async (driverEmail: string) => {
         const pw = generatePassword();
         const ok = await run(`reset-${driverEmail}`, () => adminApi.resetDriverPassword(driverEmail, pw));
-        if (ok) {
-            setIssued({ email: driverEmail, password: pw });
-            setCopied(false);
-        }
-    };
-
-    const copy = async () => {
-        if (!issued) return;
-        try {
-            await navigator.clipboard.writeText(issued.password);
-            setCopied(true);
-        } catch {
-            setCopied(false);
-        }
+        if (ok) onIssued({ email: driverEmail, password: pw });
     };
 
     return (
         <div className="space-y-4">
-            {issued && (
-                <div className="rounded-2xl border border-border bg-muted/40 p-5 space-y-3">
-                    <div className="space-y-1">
-                        <h2 className="font-semibold text-foreground">Password for {issued.email}</h2>
-                        <p className="text-sm text-muted-foreground">
-                            Copy this now — it is stored only as a hash and cannot be shown again. Reset it if it gets
-                            lost.
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <code className="flex-1 overflow-x-auto rounded-xl border border-border/60 bg-background px-4 py-3 font-mono text-base text-foreground">
-                            {issued.password}
-                        </code>
-                        <Button onClick={() => void copy()} className="h-11 shrink-0 rounded-xl px-4">
-                            {copied ? <Check size={16} /> : <Copy size={16} />}
-                            <span className="ml-1 hidden sm:inline">{copied ? 'Copied' : 'Copy'}</span>
-                        </Button>
-                    </div>
-                    <button
-                        onClick={() => setIssued(null)}
-                        className="text-sm text-muted-foreground underline transition-colors hover:text-foreground"
-                    >
-                        Done
-                    </button>
-                </div>
-            )}
-
             <SectionCard>
                 <div className="space-y-1">
                     <h2 className="font-semibold text-foreground">Add a driver</h2>
@@ -620,15 +760,29 @@ function DriversTab({ drivers, busy, run }: { drivers: Person[]; busy: string | 
 
             <SectionCard>
                 <h2 className="font-semibold text-foreground">Drivers</h2>
+                {drivers.length > 0 && (
+                    <SearchExportBar
+                        query={query}
+                        onQuery={setQuery}
+                        placeholder="Search name or email…"
+                        onExport={exportCsv}
+                        exportDisabled={drivers.length === 0}
+                    />
+                )}
                 {drivers.length === 0 ? (
                     <EmptyRow text="No drivers yet." />
+                ) : filtered.length === 0 ? (
+                    <EmptyRow text="No drivers match your search." />
                 ) : (
                     <ul className="divide-y divide-border/60">
-                        {drivers.map((d) => (
+                        {filtered.map((d) => (
                             <li key={d.id} className="flex items-center justify-between gap-3 py-2.5">
                                 <div className="min-w-0">
                                     <p className="truncate text-sm text-foreground">{d.username}</p>
-                                    <p className="truncate text-xs text-muted-foreground">{d.email}</p>
+                                    <p className="truncate text-xs text-muted-foreground">
+                                        {d.email}
+                                        {formatDate(d.createdAt) && ` · added ${formatDate(d.createdAt)}`}
+                                    </p>
                                 </div>
                                 <div className="flex shrink-0 items-center gap-1">
                                     <button
