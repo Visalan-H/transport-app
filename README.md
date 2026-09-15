@@ -5,9 +5,9 @@ Polaris is a real-time bus tracking platform for Saveetha transport operations.
 ## What It Provides
 
 - Live map with SSE updates for all tracked buses.
-- Authenticated student access with OTP onboarding, gated on a paid-transport allowlist.
+- Authenticated student access gated on a paid-transport allowlist: invited students sign up straight from the email link, anyone else verifies with an OTP or requests access.
 - Driver location updates accepted, validated and applied on arrival.
-- An admin page (`/admin`) for the allowlist, registered students and driver accounts.
+- An admin page (`/admin`) for invites (single, bulk roster import, access requests), registered students and driver accounts, with search and CSV export.
 - Lightweight architecture optimized for low operational cost.
 
 ## Architecture
@@ -277,6 +277,11 @@ ALLOWED_ORIGINS=http://localhost:5173,https://yourdomain.com
 # allowlist needs an admin session, and a session needs an account.
 ADMIN_EMAILS=you@example.com
 
+# Public base URL for the signup link in invite emails. Optional: unset, it is
+# derived from ALLOWED_ORIGINS (first https:// entry, else the first entry).
+# Set it explicitly when testing from a phone on the LAN, e.g. http://192.168.1.7
+# APP_URL=https://yourdomain.com
+
 SERVER_PORT=3000
 SESSION_MAX_AGE=604800          # 7 days in seconds
 SSE_INTERVAL=5000               # SSE broadcast interval (ms)
@@ -290,7 +295,7 @@ LOG_LEVEL=info
 # simulation/.env, to the same value, when you want synthetic traffic locally.
 # SIM_API_KEY=any-shared-local-value
 
-# Required. Gmail app password -- OTP mail is how anyone signs up at all.
+# Required. Gmail app password -- OTP and invite mail are how anyone signs up at all.
 EMAIL_USER=your-email@gmail.com
 EMAIL_PASS=your-app-password
 ```
