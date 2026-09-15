@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { adminApi, type AllowedEmail, type Person } from '@/utils/adminApi';
+import { Textarea } from '@/components/ui/textarea';
+import { adminApi, type AllowedEmail, type BulkAddResult, type Person } from '@/utils/adminApi';
 import { useAuth } from '@/hooks/useAuth';
-import { Loader2, Plus, Trash2, KeyRound, Copy, Check, MailCheck, Users, Bus, RefreshCw } from 'lucide-react';
+import { parseEmailText } from '@/utils/parseEmailList';
+import { Loader2, Plus, Trash2, KeyRound, Copy, Check, MailCheck, Users, Bus, RefreshCw, Upload } from 'lucide-react';
 
 type Tab = 'invites' | 'students' | 'drivers';
 
@@ -201,6 +203,8 @@ function InvitesTab({ invites, busy, run }: { invites: AllowedEmail[]; busy: str
                 </form>
             </SectionCard>
 
+            <BulkInviteCard busy={busy} run={run} />
+
             <SectionCard>
                 <h2 className="font-semibold text-foreground">Allowed emails</h2>
                 {invites.length === 0 ? (
@@ -243,6 +247,161 @@ function InvitesTab({ invites, busy, run }: { invites: AllowedEmail[]; busy: str
                 </p>
             </SectionCard>
         </div>
+    );
+}
+
+function BulkInviteCard({ busy, run }: { busy: string | null; run: RunFn }) {
+    const [text, setText] = useState('');
+    const [fileError, setFileError] = useState<string | null>(null);
+    const [importing, setImporting] = useState(false);
+    const [result, setResult] = useState<BulkAddResult | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const parsed = useMemo(() => parseEmailText(text), [text]);
+
+    const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        e.target.value = ''; // so picking the same file again still fires onChange
+        if (!file) return;
+
+        setFileError(null);
+        setImporting(true);
+        try {
+            // Loaded on demand so the ZIP/spreadsheet reader is fetched only when
+            // an admin actually imports a file, never as part of opening the page.
+            const { readFileText } = await import('@/utils/parseSpreadsheet');
+            const { valid: fromFile } = parseEmailText(await readFileText(file));
+            if (fromFile.length === 0) {
+                setFileError(`No emails found in ${file.name}.`);
+                return;
+            }
+            // Append to whatever's already in the box rather than replacing it, so
+            // an import never wipes lines the admin has typed -- including ones
+            // still being corrected (which parsed.valid would silently drop).
+            setText((prev) => {
+                const kept = prev.split('\n').map((l) => l.trim());
+                const existing = new Set(kept.filter(Boolean).map((l) => l.toLowerCase()));
+                const additions = fromFile.filter((email) => !existing.has(email));
+                return [...kept, ...additions].filter(Boolean).join('\n');
+            });
+            setResult(null);
+        } catch {
+            setFileError(`Could not read ${file.name}. Try a .csv, .xlsx or .ods file, or paste the emails instead.`);
+        } finally {
+            setImporting(false);
+        }
+    };
+
+    const submit = async () => {
+        if (parsed.valid.length === 0) return;
+        setFileError(null);
+        const ok = await run('bulk-invite', async () => {
+            const res = await adminApi.bulkAddAllowedEmails(parsed.valid);
+            setResult(res.data);
+        });
+        if (ok) setText('');
+    };
+
+    return (
+        <SectionCard>
+            <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                    <h2 className="font-semibold text-foreground">Bulk import</h2>
+                    <p className="text-sm text-muted-foreground">
+                        Upload an Excel/CSV export or paste a column of emails — any cell that isn't an address (names,
+                        roll numbers, a header row) is ignored automatically.
+                    </p>
+                </div>
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,.tsv,.txt,.xlsx,.ods"
+                    className="hidden"
+                    onChange={(e) => void onFileChange(e)}
+                />
+                <Button
+                    type="button"
+                    variant="outline"
+                    disabled={importing}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="h-9 shrink-0 rounded-xl px-3"
+                >
+                    {importing ? <Loader2 className="size-4 animate-spin" /> : <Upload size={16} />}
+                    <span className="ml-1.5 hidden sm:inline">{importing ? 'Reading…' : 'Upload file'}</span>
+                </Button>
+            </div>
+
+            {fileError && <p className="text-sm text-destructive">{fileError}</p>}
+
+            <Textarea
+                value={text}
+                onChange={(e) => {
+                    setText(e.target.value);
+                    setResult(null);
+                }}
+                placeholder={'one@example.com\ntwo@example.com\n…or paste a column copied straight out of Excel'}
+                className="min-h-32 rounded-xl font-mono text-sm"
+            />
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                    {parsed.valid.length === 0
+                        ? 'No emails detected yet.'
+                        : `${parsed.valid.length} email${parsed.valid.length === 1 ? '' : 's'} ready to invite.`}
+                    {parsed.invalid.length > 0 && (
+                        <span className="text-destructive">
+                            {' '}
+                            {parsed.invalid.length} don't look valid: {parsed.invalid.slice(0, 5).join(', ')}
+                            {parsed.invalid.length > 5 ? ', …' : ''}
+                        </span>
+                    )}
+                </p>
+                {text && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setText('');
+                            setResult(null);
+                        }}
+                        className="text-xs text-muted-foreground underline transition-colors hover:text-foreground"
+                    >
+                        Clear
+                    </button>
+                )}
+            </div>
+
+            <Button
+                type="button"
+                onClick={() => void submit()}
+                disabled={parsed.valid.length === 0 || busy === 'bulk-invite'}
+                className="h-11 w-full rounded-xl font-semibold"
+            >
+                {busy === 'bulk-invite' ? (
+                    <span className="flex items-center gap-2">
+                        <Loader2 className="size-4 animate-spin" /> Inviting…
+                    </span>
+                ) : parsed.valid.length === 0 ? (
+                    'Invite students'
+                ) : (
+                    `Invite ${parsed.valid.length} ${parsed.valid.length === 1 ? 'student' : 'students'}`
+                )}
+            </Button>
+
+            {result && (
+                <div className="rounded-xl border border-border/60 bg-muted/50 px-4 py-3 text-sm text-foreground">
+                    <p>
+                        {result.added.length} added
+                        {result.alreadyPresent.length > 0 && `, ${result.alreadyPresent.length} already invited`}
+                        {result.invalid.length > 0 && `, ${result.invalid.length} rejected`}.
+                    </p>
+                    {result.invalid.length > 0 && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            Rejected by the server: {result.invalid.join(', ')}
+                        </p>
+                    )}
+                </div>
+            )}
+        </SectionCard>
     );
 }
 

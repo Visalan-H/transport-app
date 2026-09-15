@@ -38,4 +38,19 @@ export const AllowedEmail = {
         const removed = await db.delete(allowedEmails).where(eq(allowedEmails.email, email.toLowerCase())).returning();
         return removed.length > 0;
     },
+
+    /**
+     * One insert for the whole batch rather than N round trips. Rows already
+     * present are silently skipped (same onConflictDoNothing as add()) and
+     * simply absent from the returned rows -- the caller diffs the input
+     * against this to report what was actually new.
+     */
+    async addMany(emails: string[], addedBy: string) {
+        if (emails.length === 0) return [];
+        return db
+            .insert(allowedEmails)
+            .values(emails.map((email) => ({ email: email.toLowerCase(), addedBy })))
+            .onConflictDoNothing()
+            .returning();
+    },
 };
