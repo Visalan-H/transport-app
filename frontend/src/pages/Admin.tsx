@@ -124,13 +124,10 @@ export default function Admin() {
     ];
 
     return (
-        <div className="flex-1 overflow-y-auto px-4 py-6">
-            <div className="mx-auto w-full max-w-3xl space-y-6">
+        <div className="flex-1 overflow-x-hidden overflow-y-auto px-4 py-8">
+            <div className="mx-auto w-full max-w-3xl space-y-8">
                 <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-1">
-                        <h1 className="text-3xl font-extrabold tracking-wide text-foreground">Admin</h1>
-                        <p className="text-sm text-muted-foreground">Manage who can sign up and who can drive.</p>
-                    </div>
+                    <h1 className="text-3xl font-extrabold tracking-wide text-foreground">Admin</h1>
                     <button
                         onClick={() => void refresh()}
                         className="mt-1 shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -149,20 +146,22 @@ export default function Admin() {
                                 setError(null);
                                 setNotice(null);
                             }}
-                            className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                            className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-2 text-xs font-medium transition-colors sm:gap-2 sm:px-3 sm:text-sm ${
                                 tab === t.id
                                     ? 'bg-primary/10 text-foreground'
                                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                             }`}
                         >
-                            {t.icon}
-                            <span>{t.label}</span>
-                            <span className="rounded-full bg-muted px-1.5 text-xs tabular-nums text-muted-foreground">
+                            {/* Icon is decoration on a phone -- three tabs with icon, label and two badges
+                                do not fit in 360px, and the label is the part that carries meaning. */}
+                            <span className="hidden sm:contents">{t.icon}</span>
+                            <span className="truncate">{t.label}</span>
+                            <span className="shrink-0 rounded-full bg-muted px-1.5 text-xs tabular-nums text-muted-foreground">
                                 {t.count}
                             </span>
                             {t.pending ? (
                                 <span
-                                    className="rounded-full bg-amber-400/20 px-1.5 text-xs font-semibold tabular-nums text-amber-600 dark:text-amber-400"
+                                    className="shrink-0 rounded-full bg-amber-400/20 px-1.5 text-xs font-semibold tabular-nums text-amber-600 dark:text-amber-400"
                                     title={`${t.pending} access request${t.pending === 1 ? '' : 's'} waiting`}
                                 >
                                     +{t.pending}
@@ -200,11 +199,11 @@ export default function Admin() {
 type RunFn = (key: string, fn: () => Promise<unknown>, successMessage?: string) => Promise<boolean>;
 
 function SectionCard({ children }: { children: React.ReactNode }) {
-    return <div className="rounded-2xl border border-border/60 bg-card/70 p-5 space-y-4">{children}</div>;
+    return <div className="rounded-2xl border border-border/60 bg-card/70 p-5 space-y-5 sm:p-6">{children}</div>;
 }
 
 function EmptyRow({ text }: { text: string }) {
-    return <p className="py-6 text-center text-sm text-muted-foreground">{text}</p>;
+    return <p className="py-8 text-center text-sm text-muted-foreground">{text}</p>;
 }
 
 /** Case-insensitive substring match across a row's fields, for the list search. */
@@ -270,12 +269,10 @@ function IssuedPasswordPanel({ issued, onDismiss }: { issued: Issued; onDismiss:
     };
 
     return (
-        <div className="rounded-2xl border border-border bg-muted/40 p-5 space-y-3">
+        <div className="rounded-2xl border border-border bg-muted/40 p-5 space-y-4 sm:p-6">
             <div className="space-y-1">
                 <h2 className="font-semibold text-foreground">Password for {issued.email}</h2>
-                <p className="text-sm text-muted-foreground">
-                    Copy this now — it is stored only as a hash and cannot be shown again. Reset it if it gets lost.
-                </p>
+                <p className="text-sm text-muted-foreground">Copy it now — it won't be shown again.</p>
             </div>
             <div className="flex items-center gap-2">
                 <code className="flex-1 overflow-x-auto rounded-xl border border-border/60 bg-background px-4 py-3 font-mono text-base text-foreground">
@@ -300,7 +297,7 @@ function IssuedPasswordPanel({ issued, onDismiss }: { issued: Issued; onDismiss:
 
 function AccessRequestsCard({ requests, busy, run }: { requests: AccessRequest[]; busy: string | null; run: RunFn }) {
     return (
-        <div className="rounded-2xl border border-amber-400/40 bg-amber-400/5 p-5 space-y-3">
+        <div className="rounded-2xl border border-amber-400/40 bg-amber-400/5 p-5 space-y-4 sm:p-6">
             <div className="flex items-center gap-2">
                 <UserPlus size={18} className="text-amber-600 dark:text-amber-400" />
                 <h2 className="font-semibold text-foreground">
@@ -310,12 +307,9 @@ function AccessRequestsCard({ requests, busy, run }: { requests: AccessRequest[]
                     </span>
                 </h2>
             </div>
-            <p className="text-sm text-muted-foreground">
-                People who asked to join. Approving allowlists them and emails a signup link.
-            </p>
             <ul className="divide-y divide-border/60">
                 {requests.map((r) => (
-                    <li key={r.id} className="flex items-center justify-between gap-3 py-2.5">
+                    <li key={r.id} className="flex items-center justify-between gap-3 py-3.5">
                         <div className="min-w-0">
                             <p className="truncate text-sm text-foreground">{r.email}</p>
                             {formatDate(r.createdAt) && (
@@ -418,17 +412,11 @@ function InvitesTab({
         );
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-6">
             {requests.length > 0 && <AccessRequestsCard requests={requests} busy={busy} run={run} />}
 
             <SectionCard>
-                <div className="space-y-1">
-                    <h2 className="font-semibold text-foreground">Allow an email to sign up</h2>
-                    <p className="text-sm text-muted-foreground">
-                        Only addresses on this list can request a signup OTP. Adding someone here does not create an
-                        account — they still sign up themselves.
-                    </p>
-                </div>
+                <h2 className="font-semibold text-foreground">Invite an email</h2>
                 <form onSubmit={add} className="flex gap-2">
                     <Input
                         type="email"
@@ -465,15 +453,15 @@ function InvitesTab({
                     />
                 )}
                 {invites.length === 0 ? (
-                    <EmptyRow text="Nobody is allowed to sign up yet." />
+                    <EmptyRow text="No invites yet." />
                 ) : filtered.length === 0 ? (
-                    <EmptyRow text="No emails match your search." />
+                    <EmptyRow text="No matches." />
                 ) : (
                     <ul className="divide-y divide-border/60">
                         {filtered.map((row) => {
                             const joined = joinedEmails.has(row.email.toLowerCase());
                             return (
-                                <li key={row.id} className="flex items-center justify-between gap-3 py-2.5">
+                                <li key={row.id} className="flex items-center justify-between gap-3 py-3.5">
                                     <div className="min-w-0">
                                         <p className="flex items-center gap-2 truncate text-sm text-foreground">
                                             <span className="truncate">{row.email}</span>
@@ -538,10 +526,6 @@ function InvitesTab({
                         })}
                     </ul>
                 )}
-                <p className="text-xs text-muted-foreground">
-                    Removing an address only blocks future signups. Anyone who already registered keeps their account —
-                    remove them under Students.
-                </p>
             </SectionCard>
         </div>
     );
@@ -613,11 +597,8 @@ function BulkInviteCard({ busy, run }: { busy: string | null; run: RunFn }) {
         <SectionCard>
             <div className="flex items-start justify-between gap-4">
                 <div className="space-y-1">
-                    <h2 className="font-semibold text-foreground">Bulk import</h2>
-                    <p className="text-sm text-muted-foreground">
-                        Upload an Excel/CSV export or paste a column of emails — any cell that isn't an address (names,
-                        roll numbers, a header row) is ignored automatically.
-                    </p>
+                    <h2 className="font-semibold text-foreground">Bulk invite</h2>
+                    <p className="text-sm text-muted-foreground">Excel, CSV or paste a list.</p>
                 </div>
                 <input
                     ref={fileInputRef}
@@ -646,19 +627,19 @@ function BulkInviteCard({ busy, run }: { busy: string | null; run: RunFn }) {
                     setText(e.target.value);
                     setResult(null);
                 }}
-                placeholder={'one@example.com\ntwo@example.com\n…or paste a column copied straight out of Excel'}
+                placeholder="Paste emails, one per line"
                 className="min-h-32 rounded-xl font-mono text-sm"
             />
 
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-muted-foreground">
                     {parsed.valid.length === 0
-                        ? 'No emails detected yet.'
-                        : `${parsed.valid.length} email${parsed.valid.length === 1 ? '' : 's'} ready to invite.`}
+                        ? ''
+                        : `${parsed.valid.length} email${parsed.valid.length === 1 ? '' : 's'} ready.`}
                     {parsed.invalid.length > 0 && (
                         <span className="text-destructive">
                             {' '}
-                            {parsed.invalid.length} don't look valid: {parsed.invalid.slice(0, 5).join(', ')}
+                            {parsed.invalid.length} invalid: {parsed.invalid.slice(0, 5).join(', ')}
                             {parsed.invalid.length > 5 ? ', …' : ''}
                         </span>
                     )}
@@ -688,7 +669,7 @@ function BulkInviteCard({ busy, run }: { busy: string | null; run: RunFn }) {
                         <Loader2 className="size-4 animate-spin" /> Inviting…
                     </span>
                 ) : parsed.valid.length === 0 ? (
-                    'Invite students'
+                    'Invite'
                 ) : (
                     `Invite ${parsed.valid.length} ${parsed.valid.length === 1 ? 'student' : 'students'}`
                 )}
@@ -703,14 +684,12 @@ function BulkInviteCard({ busy, run }: { busy: string | null; run: RunFn }) {
                     </p>
                     {result.invited && (
                         <p className="mt-1 text-xs text-muted-foreground">
-                            {result.invited.sent} invite{result.invited.sent === 1 ? '' : 's'} emailed
-                            {result.invited.failed > 0 && `, ${result.invited.failed} couldn't be sent`}.
+                            {result.invited.sent} emailed
+                            {result.invited.failed > 0 && `, ${result.invited.failed} failed`}.
                         </p>
                     )}
                     {result.invalid.length > 0 && (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                            Rejected by the server: {result.invalid.join(', ')}
-                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">Rejected: {result.invalid.join(', ')}</p>
                     )}
                 </div>
             )}
@@ -744,12 +723,7 @@ function StudentsTab({
 
     return (
         <SectionCard>
-            <div className="space-y-1">
-                <h2 className="font-semibold text-foreground">Registered students</h2>
-                <p className="text-sm text-muted-foreground">
-                    People who completed signup. Removing someone deletes their account and signs them out.
-                </p>
-            </div>
+            <h2 className="font-semibold text-foreground">Students</h2>
             {students.length > 0 && (
                 <SearchExportBar
                     query={query}
@@ -760,15 +734,15 @@ function StudentsTab({
                 />
             )}
             {students.length === 0 ? (
-                <EmptyRow text="No students have signed up yet." />
+                <EmptyRow text="No students yet." />
             ) : filtered.length === 0 ? (
-                <EmptyRow text="No students match your search." />
+                <EmptyRow text="No matches." />
             ) : (
                 <ul className="divide-y divide-border/60">
                     {filtered.map((s) => {
                         const isSelf = s.email.toLowerCase() === currentEmail.toLowerCase();
                         return (
-                            <li key={s.id} className="flex items-center justify-between gap-3 py-2.5">
+                            <li key={s.id} className="flex items-center justify-between gap-3 py-3.5">
                                 <div className="min-w-0">
                                     <p className="truncate text-sm text-foreground">
                                         {s.username}
@@ -855,14 +829,9 @@ function DriversTab({
     };
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-6">
             <SectionCard>
-                <div className="space-y-1">
-                    <h2 className="font-semibold text-foreground">Add a driver</h2>
-                    <p className="text-sm text-muted-foreground">
-                        Drivers do not sign up — you create the account and give them the password for the app.
-                    </p>
-                </div>
+                <h2 className="font-semibold text-foreground">Add a driver</h2>
                 <form onSubmit={create} className="space-y-3">
                     <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-1.5">
@@ -902,7 +871,7 @@ function DriversTab({
                                 id="d-pw"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Leave blank to generate one"
+                                placeholder="Blank = generate"
                                 minLength={8}
                                 className="h-11 rounded-xl font-mono"
                             />
@@ -946,11 +915,11 @@ function DriversTab({
                 {drivers.length === 0 ? (
                     <EmptyRow text="No drivers yet." />
                 ) : filtered.length === 0 ? (
-                    <EmptyRow text="No drivers match your search." />
+                    <EmptyRow text="No matches." />
                 ) : (
                     <ul className="divide-y divide-border/60">
                         {filtered.map((d) => (
-                            <li key={d.id} className="flex items-center justify-between gap-3 py-2.5">
+                            <li key={d.id} className="flex items-center justify-between gap-3 py-3.5">
                                 <div className="min-w-0">
                                     <p className="truncate text-sm text-foreground">{d.username}</p>
                                     <p className="truncate text-xs text-muted-foreground">
