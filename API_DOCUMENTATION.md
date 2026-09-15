@@ -93,20 +93,47 @@ data: [{"id":1,"lat":12.34,"lng":56.78,"timestamp":1690000000000}]
     - `500` mail failure
     - `429` rate limit exceeded
 
-### POST /auth/register
+### POST /auth/request-access
 
-- Purpose: Verify OTP, create user, issue session cookie.
-- Rate limit: 100 requests / 300 seconds per IP.
+- Purpose: Let a student who is not on the allowlist ask to be added, instead of hitting a dead end
+  on signup. Queues the address in `access_requests` for an admin to approve or dismiss.
+- Rate limit: 30 requests / 300 seconds per IP.
 - Request body:
 
 ```json
-{ "username": "alice", "email": "alice@example.com", "password": "s3cr3t123", "otp": "123456" }
+{ "email": "user@example.com" }
+```
+
+- Success: `200` `{ "success": true }` — **always**, whether or not a row was queued. An address
+  that is already allowed, already registered, or an admin is silently skipped, so the response
+  cannot be used to probe who is on the list.
+
+### POST /auth/register
+
+- Purpose: Create a user and issue the session cookie. The address must be proven one of two ways,
+  selected by `method`:
+- Rate limit: 100 requests / 300 seconds per IP.
+
+**`method: "otp"`** — the code emailed by `/auth/send-otp`:
+
+```json
+{ "method": "otp", "username": "alice", "email": "alice@example.com", "password": "s3cr3t123", "otp": "123456" }
+```
+
+**`method: "invite"`** — the token from an invite email's link (`/signup?invite=<token>`). No
+`email` field: the address comes from the verified token, so a link for one address cannot register
+another.
+
+```json
+{ "method": "invite", "username": "alice", "password": "s3cr3t123", "inviteToken": "eyJhbGciOi..." }
 ```
 
 - Success: `200` with `{ success: true, user }` and `sessionToken` cookie.
 - Notable errors:
     - `401` invalid OTP
     - `401` OTP expired (`OTP expired. Please request a new one.`)
+    - `401` `Invite link is invalid or expired` — bad signature, wrong `purpose`, or past its 48 hours
+    - `403` `Email not authorized` — the invited address has since been removed from the allowlist
     - `400` duplicate email
     - `429` rate limit exceeded
 
@@ -190,9 +217,30 @@ None of these routes are rate limited.
 
 - Purpose: Add an email to the allowlist.
 - Body: `{ "email": "student@example.com" }`
-- Success: `200` `{ "success": true, "added": true, "email": "student@example.com" }`
+- Success: `200` `{ "success": true, "added": true, "invited": true, "email": "student@example.com" }`
 - `added` is `false` when the email was already present. Re-inviting someone is a no-op, not an
-  error.
+  error, and sends nothing — use `/allowed-emails/invite` to resend.
+- A newly added address is emailed an invite link (see [Invite emails](#invite-emails)). Mail is
+  best-effort: `invited` is `false` if the send failed, but the allowlisting still happened.
+
+### POST /api/admin/allowed-emails/bulk
+
+- Purpose: Allowlist many addresses at once (pasted list or an uploaded roster, parsed client-side).
+- Body: `{ "emails": ["a@example.com", "b@example.com", "not an email"] }` — 1 to 2000 strings.
+- Each entry is validated on its own so a few bad rows do not reject the batch. Blank entries are
+  dropped silently; the rest are trimmed and lowercased.
+- Success: `200` `{ "success": true, "added": [...], "alreadyPresent": [...], "invalid": [...] }`
+- Does **not** send mail. The frontend follows up with `/allowed-emails/invite` for `added`.
+
+### POST /api/admin/allowed-emails/invite
+
+- Purpose: Send (or resend) invite emails.
+- Body: `{ "emails": ["a@example.com", ...] }` — 1 to 2000 strings.
+- Only addresses currently on the allowlist are mailed; anything else is skipped, since the link
+  would only bounce off the signup gate. Sends run 4 at a time so a large roster does not trip
+  Gmail's burst limits.
+- Success: `200` `{ "success": true, "sent": [...], "failed": [...] }` — never a 5xx for a single
+  bad recipient.
 
 ### DELETE /api/admin/allowed-emails
 
@@ -202,6 +250,26 @@ None of these routes are rate limited.
 - `404` `{ "success": false, "error": "Email not in the list" }`
 - This only blocks **future** signups. Anyone who already registered keeps their account — remove
   them via `DELETE /api/admin/users`.
+
+### GET /api/admin/access-requests
+
+- Purpose: List addresses waiting for approval (queued by `POST /auth/request-access`).
+- Success: `200` `{ "success": true, "requests": [ { "id", "email", "createdAt" }, ... ] }`
+
+### POST /api/admin/access-requests/approve
+
+- Purpose: Approve a request. This is exactly an allowlist add — the address moves onto the
+  allowlist, an invite email is sent (best-effort), and the request row is removed either way so an
+  approved address never lingers in the queue.
+- Body: `{ "email": "student@example.com" }`
+- Success: `200` `{ "success": true, "invited": true }`
+
+### DELETE /api/admin/access-requests
+
+- Purpose: Dismiss a request without allowlisting.
+- Body: `{ "email": "student@example.com" }`
+- Success: `200` `{ "success": true }`
+- `404` `{ "success": false, "error": "No such request" }`
 
 ### GET /api/admin/users
 
@@ -266,6 +334,23 @@ None of these routes are rate limited.
 - There is no revocation anywhere. Logging out, deleting a user and resetting a driver password all
   leave existing tokens valid until they expire.
 
+## Invite emails
+
+Adding an address to the allowlist (single, bulk, or by approving an access request) emails it a
+signup link. The link is `${APP_URL}/signup?invite=<token>`, where the token is a JWT signed with
+`JOSE_SECRET_KEY` carrying `{ email, purpose: "invite" }` and expiring after **48 hours**.
+
+- Redeeming it (`POST /auth/register` with `method: "invite"`) skips the OTP: the admin already
+  vouched for the address, so a second proof-of-mailbox round trip added nothing but a delay.
+- The token is proof of the address, not of continued welcome: the allowlist is re-checked at
+  redemption, so removing an email revokes every outstanding link for it. There is no per-token
+  revocation beyond that — a resend mints a new token without invalidating older ones.
+- It cannot be replayed as a login. Session and driver tokens require a `role` claim, which invite
+  tokens lack; invite verification requires `purpose: "invite"`, which the others lack.
+- Every mail goes out multipart (plain text + HTML) as `"Polaris" <EMAIL_USER>`, and the invite
+  body does not print the raw tokenized URL — those three are what keep Gmail-to-Gmail delivery out
+  of spam. Gmail's SMTP cap for a personal account is ~500 recipients per day.
+
 ## OTP Expiration
 
 - OTP hash is stored in DB with `created_at`.
@@ -279,12 +364,13 @@ Backend limits are in-memory (`rate-limiter-flexible`'s `RateLimiterMemory`), ke
 `(method, path, client-ip)` where the IP comes from `X-Real-IP`. They are per-instance and do not
 share state across replicas.
 
-| Route            | Limit               |
-| ---------------- | ------------------- |
-| `/auth/send-otp` | 60 requests / 300s  |
-| `/auth/register` | 100 requests / 300s |
-| `/auth/login`    | 100 requests / 300s |
-| `/driver/login`  | 10 requests / 300s  |
+| Route                  | Limit               |
+| ---------------------- | ------------------- |
+| `/auth/send-otp`       | 60 requests / 300s  |
+| `/auth/request-access` | 30 requests / 300s  |
+| `/auth/register`       | 100 requests / 300s |
+| `/auth/login`          | 100 requests / 300s |
+| `/driver/login`        | 10 requests / 300s  |
 
 Everything else (`/stream`, `/update`, `/health`, `/auth/me`, `/auth/logout`, `/admin/*`) is
 unlimited in the backend and fronted by nginx's `limit_req` zones instead.
@@ -302,30 +388,31 @@ rather than booting into a broken state.
 
 ### Required — no defaults
 
-| Variable            | Purpose                             |
-| ------------------- | ----------------------------------- |
-| `NEON_POSTGRES_URI` | Postgres connection string          |
-| `JOSE_SECRET_KEY`   | Signs all session and driver tokens |
-| `ALLOWED_ORIGINS`   | Comma-separated CORS allowlist      |
-| `EMAIL_USER`        | Sender account for OTP mail         |
-| `EMAIL_PASS`        | App password for `EMAIL_USER`       |
+| Variable            | Purpose                                |
+| ------------------- | -------------------------------------- |
+| `NEON_POSTGRES_URI` | Postgres connection string             |
+| `JOSE_SECRET_KEY`   | Signs all session and driver tokens    |
+| `ALLOWED_ORIGINS`   | Comma-separated CORS allowlist         |
+| `EMAIL_USER`        | Sender account for OTP and invite mail |
+| `EMAIL_PASS`        | App password for `EMAIL_USER`          |
 
 A `JOSE_SECRET_KEY` shorter than 32 characters warns but does not block boot — refusing to start
 over a key that already works would take a running deployment offline to make a point.
 
 ### Optional — with defaults
 
-| Variable                 | Default       | Purpose                                           |
-| ------------------------ | ------------- | ------------------------------------------------- |
-| `ADMIN_EMAILS`           | `''`          | Comma-separated admins; exempt from the allowlist |
-| `SIM_API_KEY`            | unset         | Enables the `x-api-key` path on `POST /update`    |
-| `NODE_ENV`               | `development` | `production` sets `Secure` on the session cookie  |
-| `LOG_LEVEL`              | `info`        | One of `info`, `debug`, `warn`                    |
-| `SERVER_PORT`            | `3000`        | Listen port                                       |
-| `SESSION_MAX_AGE`        | `604800`      | Token TTL in seconds (7 days)                     |
-| `SSE_INTERVAL`           | `5000`        | SSE broadcast interval in ms                      |
-| `BUS_EVICT_AFTER_MS`     | `3600000`     | Drop a bus from the snapshot after this long      |
-| `OTP_EXPIRATION_MINUTES` | `15`          | OTP validity, and the cleanup job's interval      |
+| Variable                 | Default       | Purpose                                                                                                                  |
+| ------------------------ | ------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `ADMIN_EMAILS`           | `''`          | Comma-separated admins; exempt from the allowlist                                                                        |
+| `APP_URL`                | derived       | Public base for links in invite mail. Unset, it is the first `https://` entry in `ALLOWED_ORIGINS`, else the first entry |
+| `SIM_API_KEY`            | unset         | Enables the `x-api-key` path on `POST /update`                                                                           |
+| `NODE_ENV`               | `development` | `production` sets `Secure` on the session cookie                                                                         |
+| `LOG_LEVEL`              | `info`        | One of `info`, `debug`, `warn`                                                                                           |
+| `SERVER_PORT`            | `3000`        | Listen port                                                                                                              |
+| `SESSION_MAX_AGE`        | `604800`      | Token TTL in seconds (7 days)                                                                                            |
+| `SSE_INTERVAL`           | `5000`        | SSE broadcast interval in ms                                                                                             |
+| `BUS_EVICT_AFTER_MS`     | `3600000`     | Drop a bus from the snapshot after this long                                                                             |
+| `OTP_EXPIRATION_MINUTES` | `15`          | OTP validity, and the cleanup job's interval                                                                             |
 
 Numeric variables are coerced and range-checked, so a typo'd `SSE_INTERVAL=0` is caught at boot
 rather than becoming an interval that never fires.
