@@ -11,7 +11,7 @@ export const sendInviteEmail = async (to: string) => {
         from: env.EMAIL_USER,
         to,
         subject: 'You can now sign up for Polaris bus tracking',
-        html: inviteTemplate(signupUrl(to)),
+        html: inviteTemplate(await signupUrl(to)),
     });
 };
 

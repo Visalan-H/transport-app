@@ -1,6 +1,6 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import api from '@/utils/axiosInstance';
-import { AuthContext, type User } from '@/hooks/useAuth';
+import { AuthContext, type RegisterPayload, type User } from '@/hooks/useAuth';
 
 interface AuthResponse {
     success?: boolean;
@@ -87,14 +87,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    const register = async (
-        username: string,
-        email: string,
-        password: string,
-        otp: string,
-    ): Promise<{ ok: boolean; message?: string }> => {
+    const register = async (payload: RegisterPayload): Promise<{ ok: boolean; message?: string }> => {
         try {
-            const res = await api.post<AuthResponse>('/auth/register', { username, email, password, otp });
+            const res = await api.post<AuthResponse>('/auth/register', payload);
             if (res.status >= 200 && res.status < 300 && res.data?.success) {
                 setUser(res.data.user!);
                 localStorage.setItem('user:v1', JSON.stringify(res.data.user));
