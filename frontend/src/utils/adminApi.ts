@@ -28,9 +28,16 @@ export interface Person {
     createdAt: string | null;
 }
 
+export interface BulkAddResult {
+    added: string[];
+    alreadyPresent: string[];
+    invalid: string[];
+}
+
 export const adminApi = {
     listAllowedEmails: () => api.get<{ emails: AllowedEmail[] }>(`${PREFIX}/allowed-emails`),
     addAllowedEmail: (email: string) => api.post<{ added: boolean }>(`${PREFIX}/allowed-emails`, { email }),
+    bulkAddAllowedEmails: (emails: string[]) => api.post<BulkAddResult>(`${PREFIX}/allowed-emails/bulk`, { emails }),
     removeAllowedEmail: (email: string) => api.delete(`${PREFIX}/allowed-emails`, { email }),
 
     listUsers: () => api.get<{ users: Person[] }>(`${PREFIX}/users`),

@@ -1,6 +1,7 @@
 import {
     handleListAllowedEmails,
     handleAddAllowedEmail,
+    handleBulkAddAllowedEmails,
     handleRemoveAllowedEmail,
     handleListUsers,
     handleRemoveUser,
@@ -20,6 +21,9 @@ export const adminRoutes = {
         GET: verifyAdmin(handleListAllowedEmails),
         POST: verifyAdmin(handleAddAllowedEmail),
         DELETE: verifyAdmin(handleRemoveAllowedEmail),
+    },
+    '/admin/allowed-emails/bulk': {
+        POST: verifyAdmin(handleBulkAddAllowedEmails),
     },
     '/admin/users': {
         GET: verifyAdmin(handleListUsers),

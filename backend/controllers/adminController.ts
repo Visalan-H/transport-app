@@ -4,7 +4,13 @@ import { Driver } from '../services/driverService';
 import { User } from '../services/userService';
 import { decodeCookie } from '../services/cookieService';
 import { validate } from '../utils/validate';
-import { emailOnlySchema, createDriverSchema, resetDriverPasswordSchema } from '../validations/adminValidations';
+import {
+    emailSchema,
+    emailOnlySchema,
+    bulkAllowedEmailsSchema,
+    createDriverSchema,
+    resetDriverPasswordSchema,
+} from '../validations/adminValidations';
 
 const actingAdmin = async (req: BunRequest): Promise<string> => {
     const session = await decodeCookie(req);
@@ -27,6 +33,35 @@ export const handleAddAllowedEmail = async (req: BunRequest) => {
     // Already present is a no-op, not a failure — an admin re-inviting someone
     // should see success, not a confusing error.
     return Response.json({ success: true, added: Boolean(added), email: result.data.email });
+};
+
+export const handleBulkAddAllowedEmails = async (req: BunRequest) => {
+    const result = await validate(bulkAllowedEmailsSchema, req);
+    if (!result.ok) return result.response;
+
+    // Validated per-entry rather than with z.array(emailSchema) in the schema
+    // itself, so a handful of bad rows from a pasted spreadsheet column don't
+    // reject the whole import -- they come back as `invalid` instead.
+    const valid = new Set<string>();
+    const invalid: string[] = [];
+    for (const raw of result.data.emails) {
+        const trimmed = raw.trim();
+        if (!trimmed) continue; // blank line/cell -- not worth reporting back
+        const parsed = emailSchema.safeParse(trimmed);
+        if (parsed.success) valid.add(parsed.data);
+        else invalid.push(trimmed);
+    }
+
+    const inserted = await AllowedEmail.addMany([...valid], await actingAdmin(req));
+    const insertedEmails = new Set(inserted.map((row) => row.email));
+    const alreadyPresent = [...valid].filter((email) => !insertedEmails.has(email));
+
+    return Response.json({
+        success: true,
+        added: [...insertedEmails],
+        alreadyPresent,
+        invalid,
+    });
 };
 
 export const handleRemoveAllowedEmail = async (req: BunRequest) => {
