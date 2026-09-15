@@ -1,4 +1,4 @@
-import transporter from '../config/nodemailer';
+import transporter, { MAIL_FROM } from '../config/nodemailer';
 import { env } from '../config/env';
 
 const OTP_EXPIRATION_MINUTES = env.OTP_EXPIRATION_MINUTES;
@@ -8,9 +8,10 @@ const otpTemplate = (otp: string) =>
 
 export const sendOtpEmail = async (to: string, otp: string) => {
     return await transporter.sendMail({
-        from: env.EMAIL_USER,
+        from: MAIL_FROM,
         to,
-        subject: `${otp} is your verification code`,
+        subject: `${otp} is your Polaris verification code`,
+        text: `Your Polaris verification code is ${otp}. It expires in ${OTP_EXPIRATION_MINUTES} minute${OTP_EXPIRATION_MINUTES === 1 ? '' : 's'}.\n\nIf you didn't request this, ignore this email.`,
         html: otpTemplate(otp),
     });
 };
