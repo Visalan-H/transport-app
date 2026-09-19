@@ -103,6 +103,17 @@ export default function Admin() {
         }
     };
 
+    // Feedback is a toast, not inline page content: on a phone, an admin acting on a
+    // row scrolled into the list would otherwise never see it without scrolling back up.
+    useEffect(() => {
+        if (!error && !notice) return;
+        const timer = setTimeout(() => {
+            setError(null);
+            setNotice(null);
+        }, 4000);
+        return () => clearTimeout(timer);
+    }, [error, notice]);
+
     if (loading) {
         return (
             <div className="flex flex-1 items-center justify-center">
@@ -171,14 +182,16 @@ export default function Admin() {
                     ))}
                 </div>
 
-                {error && (
-                    <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                        {error}
-                    </div>
-                )}
-                {notice && (
-                    <div className="rounded-xl border border-border/60 bg-muted/50 px-4 py-3 text-sm text-foreground">
-                        {notice}
+                {(error || notice) && (
+                    <div
+                        role="status"
+                        className={`fixed inset-x-4 bottom-4 z-50 mx-auto max-w-sm rounded-xl border px-4 py-3 text-sm shadow-lg sm:inset-x-auto sm:right-6 ${
+                            error
+                                ? 'border-destructive/30 bg-destructive text-white'
+                                : 'border-border/60 bg-foreground text-background'
+                        }`}
+                    >
+                        {error ?? notice}
                     </div>
                 )}
 
