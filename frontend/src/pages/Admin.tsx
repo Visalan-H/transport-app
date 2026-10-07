@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { parseEmailText } from '@/utils/parseEmailList';
 import { formatDate } from '@/utils/formatTime';
 import { downloadCsv } from '@/utils/downloadCsv';
+import { errorMessage } from '@/utils/errorMessage';
 import {
     Loader2,
     Plus,
@@ -30,11 +31,6 @@ import {
 type Tab = 'invites' | 'students' | 'drivers';
 
 type Issued = { email: string; password: string };
-
-const errText = (err: unknown, fallback: string): string => {
-    const e = err as { data?: { error?: string }; response?: { data?: { error?: string } }; message?: string };
-    return e?.response?.data?.error ?? e?.data?.error ?? e?.message ?? fallback;
-};
 
 /** Long enough that it does not need a complexity rule, short enough to read aloud. */
 const generatePassword = (): string => {
@@ -76,7 +72,7 @@ export default function Admin() {
             setStudents(u.data.users ?? []);
             setDrivers(d.data.drivers ?? []);
         } catch (err) {
-            setError(errText(err, 'Could not load admin data'));
+            setError(errorMessage(err, 'Could not load admin data'));
         } finally {
             setLoading(false);
         }
@@ -96,7 +92,7 @@ export default function Admin() {
             await refresh();
             return true;
         } catch (err) {
-            setError(errText(err, 'Something went wrong'));
+            setError(errorMessage(err, 'Something went wrong'));
             return false;
         } finally {
             setBusy(null);

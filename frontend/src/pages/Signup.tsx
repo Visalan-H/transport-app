@@ -8,6 +8,20 @@ import { Loader2, Eye, EyeOff, Mail, Lock, User, KeyRound, ArrowLeft, Check } fr
 
 type Step = 'details' | 'verify';
 
+// Mirrors usernameSchema in backend/validations/authValidations.ts, checked here
+// so the student sees what to fix before the request goes out.
+const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/;
+
+const usernameProblem = (value: string): string | null => {
+    const name = value.trim();
+    if (!name) return 'Pick a username.';
+    if (name.includes('@')) return "Username can't be your email. Try something like john_doe.";
+    if (!USERNAME_PATTERN.test(name)) return 'Username can only use letters, numbers and underscores.';
+    if (name.length < 3) return 'Username needs at least 3 characters.';
+    if (name.length > 20) return 'Username can be at most 20 characters.';
+    return null;
+};
+
 /**
  * Display-only peek at the invite token's email. The backend is the only thing
  * that verifies the signature; this just lets the form show who the link is
@@ -62,8 +76,9 @@ export default function Signup() {
         setError(null);
         setNotAuthorized(false);
 
-        if (!username.trim()) {
-            setError('Username is required');
+        const nameError = usernameProblem(username);
+        if (nameError) {
+            setError(nameError);
             return;
         }
 
@@ -72,13 +87,19 @@ export default function Signup() {
 
         if (result.ok) {
             setStep('verify');
-        } else if (/not authorized/i.test(result.message ?? '')) {
+        } else if (result.status === 403) {
             setNotAuthorized(true);
         } else {
-            setError(result.message || 'Failed to send OTP');
+            setError(result.message || "Couldn't send the code. Try again.");
         }
 
         setIsLoading(false);
+    };
+
+    const handleResend = async () => {
+        setError(null);
+        const result = await sendOtp(email);
+        if (!result.ok) setError(result.message || "Couldn't send the code. Try again.");
     };
 
     const handleRequestAccess = async () => {
@@ -93,37 +114,74 @@ export default function Signup() {
         e.preventDefault();
         setError(null);
 
+        // The OTP flow checked the username on its first step. The invite form has
+        // no first step, so this is the only check it gets.
+        const nameError = usernameProblem(username);
+        if (nameError) {
+            setError(nameError);
+            return;
+        }
+
         if (password !== confirmPassword) {
-            setError('Passwords do not match');
+            setError("Passwords don't match.");
             return;
         }
 
         if (password.length < 8) {
-            setError('Password must be at least 8 characters');
+            setError('Password needs at least 8 characters.');
             return;
         }
 
         setIsLoading(true);
         const result = await register(
             inviteToken
-                ? { method: 'invite', username, password, inviteToken }
-                : { method: 'otp', username, email, password, otp },
+                ? { method: 'invite', username: username.trim(), password, inviteToken }
+                : { method: 'otp', username: username.trim(), email, password, otp },
         );
 
         if (result.ok) {
             navigate('/');
-        } else if (inviteToken && /invite link/i.test(result.message ?? '')) {
+        } else if (inviteToken && result.status === 401) {
             // Expired or revoked link: drop into the ordinary OTP flow with the
             // address kept, rather than leaving the student stuck.
             setInviteToken(null);
             setStep('details');
             setError('That invite link has expired. Verify your email with a code instead.');
         } else {
-            setError(result.message || 'Registration failed');
+            setError(result.message || 'Registration failed. Try again.');
         }
 
         setIsLoading(false);
     };
+
+    const usernameField = (
+        <div className="space-y-1.5">
+            <Label
+                htmlFor="username"
+                className="ml-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground/80"
+            >
+                Username
+            </Label>
+            <div className="relative group">
+                <User className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/70 group-focus-within:text-foreground group-focus-within:scale-110 transition-all" />
+                <Input
+                    id="username"
+                    type="text"
+                    placeholder="john_doe"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    aria-describedby="username-hint"
+                    className="h-11 rounded-xl border-border/50 bg-background/60 pl-11 text-base transition-all focus:bg-background focus:border-foreground/25 focus:shadow-lg focus:shadow-foreground/5"
+                />
+            </div>
+            <p id="username-hint" className="ml-1 text-sm text-muted-foreground">
+                3 to 20 letters, numbers or underscores. Not your email.
+            </p>
+        </div>
+    );
 
     const passwordFields = (
         <>
@@ -198,27 +256,7 @@ export default function Signup() {
                 <div className="rounded-3xl border border-border/60 bg-card/70 p-7 backdrop-blur-xl">
                     {inviteToken ? (
                         <form onSubmit={handleVerifyAndRegister} className="space-y-5">
-                            <div className="space-y-1.5">
-                                <Label
-                                    htmlFor="username"
-                                    className="ml-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground/80"
-                                >
-                                    Username
-                                </Label>
-                                <div className="relative group">
-                                    <User className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/70 group-focus-within:text-foreground group-focus-within:scale-110 transition-all" />
-                                    <Input
-                                        id="username"
-                                        type="text"
-                                        placeholder="johndoe"
-                                        value={username}
-                                        onChange={(e) => setUsername(e.target.value)}
-                                        required
-                                        autoComplete="username"
-                                        className="h-11 rounded-xl border-border/50 bg-background/60 pl-11 text-base transition-all focus:bg-background focus:border-foreground/25 focus:shadow-lg focus:shadow-foreground/5"
-                                    />
-                                </div>
-                            </div>
+                            {usernameField}
 
                             {passwordFields}
 
@@ -248,27 +286,7 @@ export default function Signup() {
                         </form>
                     ) : step === 'details' ? (
                         <form onSubmit={handleSendOtp} className="space-y-5">
-                            <div className="space-y-1.5">
-                                <Label
-                                    htmlFor="username"
-                                    className="ml-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground/80"
-                                >
-                                    Username
-                                </Label>
-                                <div className="relative group">
-                                    <User className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/70 group-focus-within:text-foreground group-focus-within:scale-110 transition-all" />
-                                    <Input
-                                        id="username"
-                                        type="text"
-                                        placeholder="johndoe"
-                                        value={username}
-                                        onChange={(e) => setUsername(e.target.value)}
-                                        required
-                                        autoComplete="username"
-                                        className="h-11 rounded-xl border-border/50 bg-background/60 pl-11 text-base transition-all focus:bg-background focus:border-foreground/25 focus:shadow-lg focus:shadow-foreground/5"
-                                    />
-                                </div>
-                            </div>
+                            {usernameField}
 
                             <div className="space-y-1.5">
                                 <Label
@@ -390,7 +408,7 @@ export default function Signup() {
                                     Didn't receive the code?{' '}
                                     <button
                                         type="button"
-                                        onClick={() => sendOtp(email)}
+                                        onClick={() => void handleResend()}
                                         className="font-semibold text-foreground underline-offset-4 hover:underline"
                                     >
                                         Resend

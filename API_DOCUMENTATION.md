@@ -131,9 +131,9 @@ another.
 - Success: `200` with `{ success: true, user }` and `sessionToken` cookie.
 - Notable errors:
     - `401` invalid OTP
-    - `401` OTP expired (`OTP expired. Please request a new one.`)
-    - `401` `Invite link is invalid or expired` — bad signature, wrong `purpose`, or past its 48 hours
-    - `403` `Email not authorized` — the invited address has since been removed from the allowlist
+    - `401` OTP expired (`That code has expired. Request a new one.`)
+    - `401` `This invite link is invalid or has expired.` — bad signature, wrong `purpose`, or past its 48 hours
+    - `403` `This email isn't on the transport list yet.` — the invited address has since been removed from the allowlist
     - `400` duplicate email
     - `429` rate limit exceeded
 

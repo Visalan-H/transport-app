@@ -19,14 +19,21 @@ export type RegisterPayload =
     | { method: 'otp'; username: string; email: string; password: string; otp: string }
     | { method: 'invite'; username: string; password: string; inviteToken: string };
 
+/** `status` is the HTTP status of a failed request, so callers can branch without matching on message text. */
+export interface AuthResult {
+    ok: boolean;
+    message?: string;
+    status?: number;
+}
+
 export interface AuthContextValue {
     user: User | null;
     loading: boolean;
-    sendOtp: (email: string) => Promise<{ ok: boolean; message?: string }>;
-    requestAccess: (email: string) => Promise<{ ok: boolean; message?: string }>;
-    login: (email: string, password: string) => Promise<{ ok: boolean; message?: string }>;
-    register: (payload: RegisterPayload) => Promise<{ ok: boolean; message?: string }>;
-    logout: () => Promise<{ ok: boolean; message?: string }>;
+    sendOtp: (email: string) => Promise<AuthResult>;
+    requestAccess: (email: string) => Promise<AuthResult>;
+    login: (email: string, password: string) => Promise<AuthResult>;
+    register: (payload: RegisterPayload) => Promise<AuthResult>;
+    logout: () => Promise<AuthResult>;
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
