@@ -10,8 +10,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const usernameProblem = (value: string): string | null => {
     const name = value.trim();
     if (!name) return 'Pick a username.';
-    if (name.includes('@')) return "Username can't be your email. Try something like john_doe.";
-    if (!USERNAME_PATTERN.test(name)) return 'Use only letters, numbers and underscores.';
+    if (!USERNAME_PATTERN.test(name)) return 'Username can only have letters, numbers and underscores.';
     if (name.length < 3) return 'Username needs at least 3 characters.';
     if (name.length > 20) return 'Username can be at most 20 characters.';
     return null;
