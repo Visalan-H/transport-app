@@ -20,7 +20,7 @@ export const handleSendOtp = async (req: BunRequest) => {
     // bootstrap on an empty database — no one could reach /admin to add the
     // first allowed email without already having an account.
     if (!isAdmin(email) && !(await AllowedEmail.has(email))) {
-        return Response.json({ success: false, error: 'Email not authorized' }, { status: 403 });
+        return Response.json({ success: false, error: "This email isn't on the transport list yet." }, { status: 403 });
     }
 
     const otp = randomInt(100000, 999999).toString();
@@ -31,7 +31,10 @@ export const handleSendOtp = async (req: BunRequest) => {
         await sendOtpEmail(email, otp);
         return Response.json({ success: true });
     } catch {
-        return Response.json({ success: false, error: 'Failed to send email' }, { status: 500 });
+        return Response.json(
+            { success: false, error: "Couldn't send the email. Try again in a minute." },
+            { status: 500 },
+        );
     }
 };
 
@@ -59,12 +62,18 @@ export const handleRegister = async (req: BunRequest) => {
     if (result.data.method === 'invite') {
         const invited = await verifyInviteToken(result.data.inviteToken);
         if (!invited) {
-            return Response.json({ success: false, error: 'Invite link is invalid or expired' }, { status: 401 });
+            return Response.json(
+                { success: false, error: 'This invite link is invalid or has expired.' },
+                { status: 401 },
+            );
         }
         // The token proves the address, but not that it is still welcome: an
         // admin removing the email after inviting must revoke the link too.
         if (!isAdmin(invited) && !(await AllowedEmail.has(invited))) {
-            return Response.json({ success: false, error: 'Email not authorized' }, { status: 403 });
+            return Response.json(
+                { success: false, error: "This email isn't on the transport list yet." },
+                { status: 403 },
+            );
         }
         email = invited;
     } else {
@@ -72,15 +81,23 @@ export const handleRegister = async (req: BunRequest) => {
         const { otp } = result.data;
 
         const otpRecord = await Otp.findByEmail(email);
-        if (!otpRecord) return Response.json({ success: false, error: 'Send OTP first' }, { status: 400 });
+        if (!otpRecord)
+            return Response.json({ success: false, error: 'Request a verification code first.' }, { status: 400 });
 
         if (isOtpExpired(otpRecord.createdAt)) {
             await Otp.delete(email);
-            return Response.json({ success: false, error: 'OTP expired. Please request a new one.' }, { status: 401 });
+            return Response.json(
+                { success: false, error: 'That code has expired. Request a new one.' },
+                { status: 401 },
+            );
         }
 
         const otpMatched = await Bun.password.verify(otp, otpRecord.otpHash);
-        if (!otpMatched) return Response.json({ success: false, error: 'Invalid OTP' }, { status: 401 });
+        if (!otpMatched)
+            return Response.json(
+                { success: false, error: "That code doesn't match. Check the latest email and try again." },
+                { status: 401 },
+            );
 
         await Otp.delete(email);
     }
@@ -88,7 +105,11 @@ export const handleRegister = async (req: BunRequest) => {
     const passwordHash = await Bun.password.hash(password);
     const user = await User.create(username, email, passwordHash);
     // create returns nothing only when the email is already registered.
-    if (!user) return Response.json({ success: false, error: 'Email already exists' }, { status: 400 });
+    if (!user)
+        return Response.json(
+            { success: false, error: 'An account with this email already exists. Sign in instead.' },
+            { status: 400 },
+        );
 
     await generateAndSetCookie(req, user.id, user.email, user.username);
     return Response.json({
@@ -103,10 +124,10 @@ export const handleLogin = async (req: BunRequest) => {
     const { email, password } = result.data;
 
     const user = await User.findByEmail(email);
-    if (!user) return Response.json({ success: false, error: 'Invalid credentials' }, { status: 401 });
+    if (!user) return Response.json({ success: false, error: 'Wrong email or password.' }, { status: 401 });
 
     const isValid = await Bun.password.verify(password, user.passwordHash);
-    if (!isValid) return Response.json({ success: false, error: 'Invalid credentials' }, { status: 401 });
+    if (!isValid) return Response.json({ success: false, error: 'Wrong email or password.' }, { status: 401 });
 
     await generateAndSetCookie(req, user.id, user.email, user.username);
     return Response.json({
