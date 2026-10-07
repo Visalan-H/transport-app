@@ -4,23 +4,12 @@ import { useAuth } from '../hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FieldNote } from '@/components/ui/field-note';
+import { useFieldNotes } from '@/hooks/useFieldNotes';
+import { confirmPasswordProblem, emailProblem, newPasswordProblem, usernameProblem } from '@/utils/fieldRules';
 import { Loader2, Eye, EyeOff, Mail, Lock, User, KeyRound, ArrowLeft, Check } from 'lucide-react';
 
 type Step = 'details' | 'verify';
-
-// Mirrors usernameSchema in backend/validations/authValidations.ts, checked here
-// so the student sees what to fix before the request goes out.
-const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/;
-
-const usernameProblem = (value: string): string | null => {
-    const name = value.trim();
-    if (!name) return 'Pick a username.';
-    if (name.includes('@')) return "Username can't be your email. Try something like john_doe.";
-    if (!USERNAME_PATTERN.test(name)) return 'Username can only use letters, numbers and underscores.';
-    if (name.length < 3) return 'Username needs at least 3 characters.';
-    if (name.length > 20) return 'Username can be at most 20 characters.';
-    return null;
-};
 
 /**
  * Display-only peek at the invite token's email. The backend is the only thing
@@ -62,6 +51,20 @@ export default function Signup() {
 
     const { sendOtp, requestAccess, register } = useAuth();
     const navigate = useNavigate();
+    const fields = useFieldNotes();
+
+    const problems = {
+        username: usernameProblem(username),
+        email: emailProblem(email),
+        password: newPasswordProblem(password),
+        confirmPassword: confirmPasswordProblem(confirmPassword, password),
+    };
+    const notes = {
+        username: fields.note('username', username, problems.username),
+        email: fields.note('email', email, problems.email),
+        password: fields.note('password', password, problems.password),
+        confirmPassword: fields.note('confirmPassword', confirmPassword, problems.confirmPassword),
+    };
 
     // Editing the address drops any prior not-authorized notice so a corrected
     // email gets a clean attempt.
@@ -76,16 +79,14 @@ export default function Signup() {
         setError(null);
         setNotAuthorized(false);
 
-        const nameError = usernameProblem(username);
-        if (nameError) {
-            setError(nameError);
-            return;
-        }
+        if (!fields.check(problems.username, problems.email)) return;
 
         setIsLoading(true);
         const result = await sendOtp(email);
 
         if (result.ok) {
+            // The code step has fresh fields, which should not open already flagged.
+            fields.reset();
             setStep('verify');
         } else if (result.status === 403) {
             setNotAuthorized(true);
@@ -115,22 +116,8 @@ export default function Signup() {
         setError(null);
 
         // The OTP flow checked the username on its first step. The invite form has
-        // no first step, so this is the only check it gets.
-        const nameError = usernameProblem(username);
-        if (nameError) {
-            setError(nameError);
-            return;
-        }
-
-        if (password !== confirmPassword) {
-            setError("Passwords don't match.");
-            return;
-        }
-
-        if (password.length < 8) {
-            setError('Password needs at least 8 characters.');
-            return;
-        }
+        // no first step, so it is checked here too.
+        if (!fields.check(problems.username, problems.password, problems.confirmPassword)) return;
 
         setIsLoading(true);
         const result = await register(
@@ -145,6 +132,7 @@ export default function Signup() {
             // Expired or revoked link: drop into the ordinary OTP flow with the
             // address kept, rather than leaving the student stuck.
             setInviteToken(null);
+            fields.reset();
             setStep('details');
             setError('That invite link has expired. Verify your email with a code instead.');
         } else {
@@ -170,16 +158,15 @@ export default function Signup() {
                     placeholder="john_doe"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    required
+                    onBlur={() => fields.touch('username')}
                     autoComplete="username"
                     autoCapitalize="none"
-                    aria-describedby="username-hint"
+                    aria-invalid={Boolean(notes.username)}
+                    aria-describedby={notes.username ? 'username-note' : undefined}
                     className="h-11 rounded-xl border-border/50 bg-background/60 pl-11 text-base transition-all focus:bg-background focus:border-foreground/25 focus:shadow-lg focus:shadow-foreground/5"
                 />
             </div>
-            <p id="username-hint" className="ml-1 text-sm text-muted-foreground">
-                3 to 20 letters, numbers or underscores. Not your email.
-            </p>
+            <FieldNote id="username-note" message={notes.username} />
         </div>
     );
 
@@ -200,8 +187,10 @@ export default function Signup() {
                         placeholder="••••••••"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        required
+                        onBlur={() => fields.touch('password')}
                         autoComplete="new-password"
+                        aria-invalid={Boolean(notes.password)}
+                        aria-describedby={notes.password ? 'password-note' : undefined}
                         className="h-11 rounded-xl border-border/50 bg-background/60 pl-11 pr-11 text-base transition-all focus:bg-background focus:border-foreground/25 focus:shadow-lg focus:shadow-foreground/5"
                     />
                     <button
@@ -213,6 +202,7 @@ export default function Signup() {
                         {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </button>
                 </div>
+                <FieldNote id="password-note" message={notes.password} />
             </div>
 
             <div className="space-y-1.5">
@@ -230,11 +220,14 @@ export default function Signup() {
                         placeholder="••••••••"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        required
+                        onBlur={() => fields.touch('confirmPassword')}
                         autoComplete="new-password"
+                        aria-invalid={Boolean(notes.confirmPassword)}
+                        aria-describedby={notes.confirmPassword ? 'confirm-password-note' : undefined}
                         className="h-11 rounded-xl border-border/50 bg-background/60 pl-11 text-base transition-all focus:bg-background focus:border-foreground/25 focus:shadow-lg focus:shadow-foreground/5"
                     />
                 </div>
+                <FieldNote id="confirm-password-note" message={notes.confirmPassword} />
             </div>
         </>
     );
@@ -255,7 +248,7 @@ export default function Signup() {
 
                 <div className="rounded-3xl border border-border/60 bg-card/70 p-7 backdrop-blur-xl">
                     {inviteToken ? (
-                        <form onSubmit={handleVerifyAndRegister} className="space-y-5">
+                        <form onSubmit={handleVerifyAndRegister} noValidate className="space-y-5">
                             {usernameField}
 
                             {passwordFields}
@@ -285,7 +278,7 @@ export default function Signup() {
                             </Button>
                         </form>
                     ) : step === 'details' ? (
-                        <form onSubmit={handleSendOtp} className="space-y-5">
+                        <form onSubmit={handleSendOtp} noValidate className="space-y-5">
                             {usernameField}
 
                             <div className="space-y-1.5">
@@ -303,11 +296,14 @@ export default function Signup() {
                                         placeholder="you@example.com"
                                         value={email}
                                         onChange={(e) => onEmailChange(e.target.value)}
-                                        required
+                                        onBlur={() => fields.touch('email')}
                                         autoComplete="email"
+                                        aria-invalid={Boolean(notes.email)}
+                                        aria-describedby={notes.email ? 'email-note' : undefined}
                                         className="h-11 rounded-xl border-border/50 bg-background/60 pl-11 text-base transition-all focus:bg-background focus:border-foreground/25 focus:shadow-lg focus:shadow-foreground/5"
                                     />
                                 </div>
+                                <FieldNote id="email-note" message={notes.email} />
                             </div>
 
                             {error && (
@@ -368,7 +364,7 @@ export default function Signup() {
                             </Button>
                         </form>
                     ) : (
-                        <form onSubmit={handleVerifyAndRegister} className="space-y-5">
+                        <form onSubmit={handleVerifyAndRegister} noValidate className="space-y-5">
                             <button
                                 type="button"
                                 onClick={() => {

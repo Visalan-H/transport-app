@@ -4,6 +4,9 @@ import { useAuth } from '../hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FieldNote } from '@/components/ui/field-note';
+import { useFieldNotes } from '@/hooks/useFieldNotes';
+import { emailProblem, loginPasswordProblem } from '@/utils/fieldRules';
 import { Loader2, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 
 export default function Login() {
@@ -15,10 +18,18 @@ export default function Login() {
 
     const { login } = useAuth();
     const navigate = useNavigate();
+    const fields = useFieldNotes();
+
+    const problems = { email: emailProblem(email), password: loginPasswordProblem(password) };
+    const notes = {
+        email: fields.note('email', email, problems.email),
+        password: fields.note('password', password, problems.password),
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
+        if (!fields.check(problems.email, problems.password)) return;
         setIsLoading(true);
 
         const result = await login(email, password);
@@ -41,7 +52,7 @@ export default function Login() {
                 </div>
 
                 <div className="rounded-3xl border border-border/60 bg-card/70 p-7 backdrop-blur-xl">
-                    <form onSubmit={handleSubmit} className="space-y-6">
+                    <form onSubmit={handleSubmit} noValidate className="space-y-6">
                         <div className="space-y-1.5">
                             <Label
                                 htmlFor="email"
@@ -57,11 +68,14 @@ export default function Login() {
                                     placeholder="you@example.com"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    required
+                                    onBlur={() => fields.touch('email')}
+                                    aria-invalid={Boolean(notes.email)}
+                                    aria-describedby={notes.email ? 'email-note' : undefined}
                                     autoComplete="email"
                                     className="h-11 rounded-xl border-border/50 bg-background/60 pl-11 text-base transition-all focus:bg-background focus:border-foreground/25 focus:shadow-lg focus:shadow-foreground/5"
                                 />
                             </div>
+                            <FieldNote id="email-note" message={notes.email} />
                         </div>
 
                         <div className="space-y-1.5">
@@ -79,7 +93,9 @@ export default function Login() {
                                     placeholder="••••••••"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    required
+                                    onBlur={() => fields.touch('password')}
+                                    aria-invalid={Boolean(notes.password)}
+                                    aria-describedby={notes.password ? 'password-note' : undefined}
                                     autoComplete="current-password"
                                     className="h-11 rounded-xl border-border/50 bg-background/60 pl-11 pr-11 text-base transition-all focus:bg-background focus:border-foreground/25 focus:shadow-lg focus:shadow-foreground/5"
                                 />
@@ -92,6 +108,7 @@ export default function Login() {
                                     {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                                 </button>
                             </div>
+                            <FieldNote id="password-note" message={notes.password} />
                         </div>
 
                         {error && (
