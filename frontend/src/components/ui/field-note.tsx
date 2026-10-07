@@ -2,7 +2,7 @@
 export function FieldNote({ id, message }: { id: string; message: string | null }) {
     if (!message) return null;
     return (
-        <p id={id} className="ml-1 text-xs text-destructive/80">
+        <p id={id} className="ml-1 text-xs text-destructive">
             {message}
         </p>
     );

@@ -5,6 +5,10 @@ import { useCallback, useState } from 'react';
  * student fills a field for the first time; a note appears once they leave it
  * with something wrong in it, and from then on it tracks their typing. After
  * a submit attempt every field speaks up, empty ones included.
+ *
+ * Forms using it set `noValidate` but keep `required` on their inputs: the
+ * browser's own popups stay off, and screen readers still announce the field
+ * as required.
  */
 export function useFieldNotes() {
     const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());

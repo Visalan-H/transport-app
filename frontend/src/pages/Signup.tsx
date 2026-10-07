@@ -159,6 +159,7 @@ export default function Signup() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     onBlur={() => fields.touch('username')}
+                    required
                     autoComplete="username"
                     autoCapitalize="none"
                     aria-invalid={Boolean(notes.username)}
@@ -188,6 +189,7 @@ export default function Signup() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         onBlur={() => fields.touch('password')}
+                        required
                         autoComplete="new-password"
                         aria-invalid={Boolean(notes.password)}
                         aria-describedby={notes.password ? 'password-note' : undefined}
@@ -221,6 +223,7 @@ export default function Signup() {
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         onBlur={() => fields.touch('confirmPassword')}
+                        required
                         autoComplete="new-password"
                         aria-invalid={Boolean(notes.confirmPassword)}
                         aria-describedby={notes.confirmPassword ? 'confirm-password-note' : undefined}
@@ -297,6 +300,7 @@ export default function Signup() {
                                         value={email}
                                         onChange={(e) => onEmailChange(e.target.value)}
                                         onBlur={() => fields.touch('email')}
+                                        required
                                         autoComplete="email"
                                         aria-invalid={Boolean(notes.email)}
                                         aria-describedby={notes.email ? 'email-note' : undefined}

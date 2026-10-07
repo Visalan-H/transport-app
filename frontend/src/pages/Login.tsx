@@ -69,6 +69,7 @@ export default function Login() {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     onBlur={() => fields.touch('email')}
+                                    required
                                     aria-invalid={Boolean(notes.email)}
                                     aria-describedby={notes.email ? 'email-note' : undefined}
                                     autoComplete="email"
@@ -94,6 +95,7 @@ export default function Login() {
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     onBlur={() => fields.touch('password')}
+                                    required
                                     aria-invalid={Boolean(notes.password)}
                                     aria-describedby={notes.password ? 'password-note' : undefined}
                                     autoComplete="current-password"
