@@ -1,5 +1,6 @@
-// Client-side copies of the backend's auth rules (backend/validations/authValidations.ts).
-// Each returns the note to show under the field, or null when the value is fine.
+// Client-side copies of the backend's form rules (backend/validations/authValidations.ts
+// and adminValidations.ts). Each returns the note to show under the field, or null
+// when the value is fine.
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/;
 // Loose on purpose: catches typos like a missing @ or domain. The backend's
@@ -18,7 +19,8 @@ export const usernameProblem = (value: string): string | null => {
 
 export const emailProblem = (value: string): string | null => {
     const email = value.trim();
-    if (!email) return 'Enter your email.';
+    // Not "your email": admins use this rule for students' and drivers' addresses.
+    if (!email) return 'Enter an email address.';
     if (!EMAIL_PATTERN.test(email)) return 'Enter a valid email address.';
     return null;
 };
@@ -36,3 +38,13 @@ export const confirmPasswordProblem = (value: string, password: string): string 
 };
 
 export const loginPasswordProblem = (value: string): string | null => (value ? null : 'Enter your password.');
+
+export const driverNameProblem = (value: string): string | null => {
+    const name = value.trim();
+    if (!name) return 'Enter a name.';
+    if (name.length > 60) return 'Name can be at most 60 characters.';
+    return null;
+};
+
+// Blank is allowed: the admin page generates a password when none is typed.
+export const optionalPasswordProblem = (value: string): string | null => (value ? newPasswordProblem(value) : null);

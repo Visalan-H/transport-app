@@ -9,6 +9,9 @@ import { parseEmailText } from '@/utils/parseEmailList';
 import { formatDate } from '@/utils/formatTime';
 import { downloadCsv } from '@/utils/downloadCsv';
 import { errorMessage } from '@/utils/errorMessage';
+import { FieldNote } from '@/components/ui/field-note';
+import { useFieldNotes } from '@/hooks/useFieldNotes';
+import { driverNameProblem, emailProblem, optionalPasswordProblem } from '@/utils/fieldRules';
 import {
     Loader2,
     Plus,
@@ -398,14 +401,23 @@ function InvitesTab({
     // waiting. Cross-referenced client-side from the students list already loaded.
     const joinedEmails = useMemo(() => new Set(students.map((s) => s.email.toLowerCase())), [students]);
 
+    const fields = useFieldNotes();
+    const emailIssue = emailProblem(email);
+    const emailNote = fields.note('email', email, emailIssue);
+
     const add = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!fields.check(emailIssue)) return;
         const ok = await run(
             'add-invite',
             () => adminApi.addAllowedEmail(email),
             `${email} can now sign up — invite emailed.`,
         );
-        if (ok) setEmail('');
+        if (ok) {
+            setEmail('');
+            // The emptied field is ready for the next address, not a mistake.
+            fields.reset();
+        }
     };
 
     const filtered = useMemo(
@@ -426,25 +438,36 @@ function InvitesTab({
 
             <SectionCard>
                 <h2 className="font-semibold text-foreground">Invite an email</h2>
-                <form onSubmit={add} className="flex gap-2">
-                    <Input
-                        type="email"
-                        required
-                        placeholder="student@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="h-11 rounded-xl"
-                    />
-                    <Button type="submit" disabled={busy === 'add-invite'} className="h-11 shrink-0 rounded-xl px-4">
-                        {busy === 'add-invite' ? (
-                            <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                            <>
-                                <Plus size={16} />
-                                <span className="ml-1 hidden sm:inline">Add</span>
-                            </>
-                        )}
-                    </Button>
+                <form onSubmit={add} noValidate className="space-y-1.5">
+                    <div className="flex gap-2">
+                        <Input
+                            type="email"
+                            required
+                            aria-label="Student email"
+                            placeholder="student@example.com"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            onBlur={() => fields.touch('email')}
+                            aria-invalid={Boolean(emailNote)}
+                            aria-describedby={emailNote ? 'invite-email-note' : undefined}
+                            className="h-11 rounded-xl"
+                        />
+                        <Button
+                            type="submit"
+                            disabled={busy === 'add-invite'}
+                            className="h-11 shrink-0 rounded-xl px-4"
+                        >
+                            {busy === 'add-invite' ? (
+                                <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                                <>
+                                    <Plus size={16} />
+                                    <span className="ml-1 hidden sm:inline">Add</span>
+                                </>
+                            )}
+                        </Button>
+                    </div>
+                    <FieldNote id="invite-email-note" message={emailNote} />
                 </form>
             </SectionCard>
 
@@ -628,17 +651,20 @@ function BulkInviteCard({ busy, run }: { busy: string | null; run: RunFn }) {
                 </Button>
             </div>
 
-            {fileError && <p className="text-sm text-destructive">{fileError}</p>}
-
-            <Textarea
-                value={text}
-                onChange={(e) => {
-                    setText(e.target.value);
-                    setResult(null);
-                }}
-                placeholder="Paste emails, one per line"
-                className="min-h-32 rounded-xl font-mono text-sm"
-            />
+            <div className="space-y-1.5">
+                <Textarea
+                    value={text}
+                    onChange={(e) => {
+                        setText(e.target.value);
+                        setResult(null);
+                    }}
+                    placeholder="Paste emails, one per line"
+                    aria-label="Emails to invite"
+                    aria-describedby={fileError ? 'bulk-file-note' : undefined}
+                    className="min-h-32 rounded-xl font-mono text-sm"
+                />
+                <FieldNote id="bulk-file-note" message={fileError} />
+            </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-muted-foreground">
@@ -818,8 +844,21 @@ function DriversTab({
             drivers.map((d) => [d.username, d.email, formatDate(d.createdAt)]),
         );
 
+    const fields = useFieldNotes();
+    const problems = {
+        username: driverNameProblem(username),
+        email: emailProblem(email),
+        password: optionalPasswordProblem(password),
+    };
+    const notes = {
+        username: fields.note('username', username, problems.username),
+        email: fields.note('email', email, problems.email),
+        password: fields.note('password', password, problems.password),
+    };
+
     const create = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!fields.check(problems.username, problems.email, problems.password)) return;
         const pw = password || generatePassword();
         const ok = await run('create-driver', () => adminApi.createDriver(email, username, pw));
         if (ok) {
@@ -828,6 +867,7 @@ function DriversTab({
             setEmail('');
             setUsername('');
             setPassword('');
+            fields.reset();
         }
     };
 
@@ -841,7 +881,7 @@ function DriversTab({
         <div className="space-y-6">
             <SectionCard>
                 <h2 className="font-semibold text-foreground">Add a driver</h2>
-                <form onSubmit={create} className="space-y-3">
+                <form onSubmit={create} noValidate className="space-y-3">
                     <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-1.5">
                             <Label htmlFor="d-name" className="ml-1 text-xs font-semibold uppercase tracking-wider">
@@ -853,8 +893,12 @@ function DriversTab({
                                 placeholder="Route 12 driver"
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
+                                onBlur={() => fields.touch('username')}
+                                aria-invalid={Boolean(notes.username)}
+                                aria-describedby={notes.username ? 'd-name-note' : undefined}
                                 className="h-11 rounded-xl"
                             />
+                            <FieldNote id="d-name-note" message={notes.username} />
                         </div>
                         <div className="space-y-1.5">
                             <Label htmlFor="d-email" className="ml-1 text-xs font-semibold uppercase tracking-wider">
@@ -867,8 +911,12 @@ function DriversTab({
                                 placeholder="driver@example.com"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
+                                onBlur={() => fields.touch('email')}
+                                aria-invalid={Boolean(notes.email)}
+                                aria-describedby={notes.email ? 'd-email-note' : undefined}
                                 className="h-11 rounded-xl"
                             />
+                            <FieldNote id="d-email-note" message={notes.email} />
                         </div>
                     </div>
                     <div className="space-y-1.5">
@@ -882,6 +930,9 @@ function DriversTab({
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="Blank = generate"
                                 minLength={8}
+                                onBlur={() => fields.touch('password')}
+                                aria-invalid={Boolean(notes.password)}
+                                aria-describedby={notes.password ? 'd-pw-note' : undefined}
                                 className="h-11 rounded-xl font-mono"
                             />
                             <Button
@@ -893,6 +944,7 @@ function DriversTab({
                                 <span className="ml-1 hidden sm:inline">Generate</span>
                             </Button>
                         </div>
+                        <FieldNote id="d-pw-note" message={notes.password} />
                     </div>
                     <Button
                         type="submit"
