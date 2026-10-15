@@ -28,6 +28,14 @@ The `/api` prefix is stripped before proxying, which is why the admin routes bel
 - Preflight (`OPTIONS`) rejects disallowed origins with `403`.
 - Credentials are enabled (`Access-Control-Allow-Credentials: true`).
 
+## Unexpected errors
+
+An error a route does not handle itself (the database unreachable, say) is caught once for every
+route in `withCors` (`backend/services/corsService.ts`), logged as `route_error` with the method and
+path, and returned as `500` `{ "success": false, "error": "Something went wrong. Try again." }`, with
+CORS headers. A `429` always means a rate limit and a `401`/`403` always means auth: neither is ever
+used to report a server fault.
+
 ## Routes
 
 ### GET /stream

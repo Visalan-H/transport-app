@@ -30,22 +30,18 @@ const isValidSimKey = (req: BunRequest): boolean => {
  */
 export const verifyLocationSender = (handler: Function) => {
     return async (req: BunRequest) => {
-        try {
-            if (isValidSimKey(req)) return await handler(req);
+        // No try: decodeBearer returns null rather than throwing. See verifyUser.
+        if (isValidSimKey(req)) return handler(req);
 
-            const driver = await decodeBearer(req);
-            if (!driver || driver.role !== 'driver') {
-                // Logged because the sender cannot see why it failed: the driver app treats any
-                // 401 as "token dead" and signs out, and sim.ts never inspects the status at all.
-                // Without this line an expired token or a key mismatch is silent on both ends.
-                log('warn', 'update_rejected_unauthorized', { reason: driver ? 'not_a_driver' : 'no_valid_token' });
-                return new Response('Unauthorized', { status: 401 });
-            }
-
-            return await handler(req);
-        } catch (error) {
-            console.error('Location sender auth middleware error:', error);
-            return new Response('Authentication failed', { status: 500 });
+        const driver = await decodeBearer(req);
+        if (!driver || driver.role !== 'driver') {
+            // Logged because the sender cannot see why it failed: the driver app treats any
+            // 401 as "token dead" and signs out, and sim.ts never inspects the status at all.
+            // Without this line an expired token or a key mismatch is silent on both ends.
+            log('warn', 'update_rejected_unauthorized', { reason: driver ? 'not_a_driver' : 'no_valid_token' });
+            return new Response('Unauthorized', { status: 401 });
         }
+
+        return handler(req);
     };
 };
