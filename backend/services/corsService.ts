@@ -1,5 +1,8 @@
 import type { BunRequest } from 'bun';
 import { env } from '../config/env';
+import { createLog } from '../utils/log';
+
+const log = createLog('backend');
 
 const raw = env.ALLOWED_ORIGINS;
 const ALLOWED_ORIGINS = raw
@@ -45,10 +48,34 @@ type RouteHandler = (req: BunRequest) => Response | Promise<Response>;
 type MethodHandlers = Record<string, RouteHandler>;
 type RouteTable = Record<string, RouteHandler | MethodHandlers>;
 
+// Drizzle's error message is the whole query plus its parameters -- emails, in the auth routes -- so
+// the log takes the underlying driver error instead, and only its first line.
+const describe = (error: unknown): string => {
+    const root = error instanceof Error && error.cause instanceof Error ? error.cause : error;
+    return root instanceof Error ? (root.message.split('\n')[0] ?? '') : String(root);
+};
+
+/**
+ * Also the one place a route's unexpected error is caught. The middleware used to catch it each on
+ * its own and relabel it -- the rate limiter as 429 "Too many requests", the auth wrappers as
+ * "Authentication failed" -- so a database outage told students to slow down or log in again. Here
+ * it is a plain 500, logged with the path, and it still carries CORS headers so the browser lets
+ * the frontend read the error instead of reporting a CORS failure.
+ */
 export const withCors =
     (handler: RouteHandler): RouteHandler =>
     async (req) => {
-        const res = await handler(req);
+        let res: Response;
+        try {
+            res = await handler(req);
+        } catch (error) {
+            log('warn', 'route_error', {
+                method: req.method,
+                path: new URL(req.url).pathname,
+                error: describe(error),
+            });
+            res = Response.json({ success: false, error: 'Something went wrong. Try again.' }, { status: 500 });
+        }
         applyCorsHeaders(req, res.headers);
         return res;
     };

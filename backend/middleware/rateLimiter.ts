@@ -61,11 +61,14 @@ export const withRateLimit = (handler: Function, options: RateLimitOptions = { p
         const clientId = getClientId(req);
         const routeKey = `${req.method}:${new URL(req.url).pathname}:${clientId}`;
 
+        // Only the consume is guarded. It rejects when the bucket is empty; the handler used to sit
+        // inside the same try, so a database error in login or registration reached the student as
+        // "Too many requests" and sent them off to wait instead of reporting a fault.
         try {
             await limiter.consume(routeKey);
-            return await handler(req);
         } catch {
             return Response.json({ error: 'Too many requests' }, { status: 429 });
         }
+        return handler(req);
     };
 };

@@ -10,21 +10,17 @@ import { isAdmin } from '../config/admins';
  */
 export const verifyAdmin = (handler: Function) => {
     return async (req: BunRequest) => {
-        try {
-            const user = await decodeCookie(req);
+        // No try: decodeCookie returns null rather than throwing. See verifyUser.
+        const user = await decodeCookie(req);
 
-            if (!user) {
-                return Response.json({ success: false, error: 'Not authorized' }, { status: 401 });
-            }
-
-            if (!isAdmin(user.email as string)) {
-                return Response.json({ success: false, error: 'Admin access required' }, { status: 403 });
-            }
-
-            return await handler(req);
-        } catch (error) {
-            console.error('Admin auth middleware error:', error);
-            return Response.json({ success: false, error: 'Authentication failed' }, { status: 500 });
+        if (!user) {
+            return Response.json({ success: false, error: 'Not authorized' }, { status: 401 });
         }
+
+        if (!isAdmin(user.email as string)) {
+            return Response.json({ success: false, error: 'Admin access required' }, { status: 403 });
+        }
+
+        return handler(req);
     };
 };
