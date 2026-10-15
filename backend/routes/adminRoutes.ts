@@ -13,6 +13,8 @@ import {
     handleCreateDriver,
     handleResetDriverPassword,
     handleRemoveDriver,
+    handleCreateBus,
+    handleRenameBus,
 } from '../controllers/adminController';
 import { verifyAdmin } from '../middleware/verifyAdmin';
 
@@ -50,5 +52,10 @@ export const adminRoutes = {
     },
     '/admin/drivers/password': {
         POST: verifyAdmin(handleResetDriverPassword),
+    },
+    // No DELETE on purpose -- see busService.
+    '/admin/buses': {
+        POST: verifyAdmin(handleCreateBus),
+        PATCH: verifyAdmin(handleRenameBus),
     },
 };

@@ -5,6 +5,8 @@ import { otps } from '../models/otp';
 import { drivers } from '../models/driver';
 import { allowedEmails } from '../models/allowedEmail';
 import { accessRequests } from '../models/accessRequest';
+import { buses } from '../models/bus';
+import { SEED_BUSES } from '../data/seedBuses';
 import { env } from './env';
 
 const connectionString = env.NEON_POSTGRES_URI;
@@ -123,10 +125,42 @@ await client`CREATE UNIQUE INDEX IF NOT EXISTS otps_email_key ON otps (email)`;
 await client`DROP INDEX IF EXISTS otps_email_idx`;
 await client`CREATE INDEX IF NOT EXISTS otps_created_at_idx ON otps (created_at)`;
 
+// Bus id -> route name. It lived in the frontend bundle and the driver APK until a route change
+// meant shipping a new APK to every driver; now the admin page edits it here and both read it from
+// GET /buses. Names are unique ignoring case so "Ashok Nagar 16F" and "ashok nagar 16f" cannot split
+// one bus into two map markers.
+await client`
+  CREATE TABLE IF NOT EXISTS buses (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now()
+  )
+`;
+await client`CREATE UNIQUE INDEX IF NOT EXISTS buses_name_lower_key ON buses (lower(name))`;
+
+// Seeds the list once, with the ids the old hardcoded map used: driver APK v1.0.0 sends those ids
+// and the live map keys on them, so they must not shift. Runs only on an empty table, so once the
+// admin has added or renamed a bus this never touches it again. The transaction-scoped advisory
+// lock makes a second process booting at the same moment wait and then see the rows, rather than
+// both seeing an empty table. setval moves the sequence past the explicit ids, otherwise the first
+// bus added from the admin page would be handed id 1 and collide.
+await client.begin(async (tx) => {
+    await tx`SELECT pg_advisory_xact_lock(hashtext('buses_seed'))`;
+    const [existing] = await tx`SELECT EXISTS (SELECT 1 FROM buses) AS any`;
+    if (existing?.any) return;
+    await tx`INSERT INTO buses ${tx(
+        SEED_BUSES.map((b) => ({ id: b.id, name: b.name })),
+        'id',
+        'name',
+    )}`;
+    await tx`SELECT setval(pg_get_serial_sequence('buses', 'id'), (SELECT max(id) FROM buses))`;
+    console.log(`[db] [INFO] buses_seeded {"count":${SEED_BUSES.length}}`);
+});
+
 // The allowlist is managed entirely through the admin page now. Signup bootstrap
 // no longer needs a seeded student: ADMIN_EMAILS is exempt from the allowlist,
 // so an admin can always sign in and add the first paid student themselves.
 
 export const db = drizzle(client, {
-    schema: { users, otps, drivers, allowedEmails },
+    schema: { users, otps, drivers, allowedEmails, buses },
 });

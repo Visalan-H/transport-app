@@ -8,9 +8,10 @@
 - Default payload format: JSON (except `POST /update`, which takes a plain-text payload).
 
 In production a single origin fronts everything and nginx (`frontend/nginx.conf`) dispatches by
-path: `/auth/*`, `/stream`, `/update`, `/health` and `/api/*` all proxy to the backend on `:3000`.
-The `/api` prefix is stripped before proxying, which is why the admin routes below are registered as
-`/admin/*` in the backend but called as `/api/admin/*` from the browser.
+path: `/auth/*`, `/driver/*`, `/stream`, `/update`, `/health`, `/api/admin/*` and `/api/buses` proxy
+to the backend on `:3000`. There is no general `/api/*` forward. The `/api` prefix is stripped before
+proxying, which is why the admin routes below are registered as `/admin/*` in the backend but called
+as `/api/admin/*` from the browser, and `GET /buses` is called as `/api/buses`.
 
 ## Types
 
@@ -26,6 +27,7 @@ The `/api` prefix is stripped before proxying, which is why the admin routes bel
   applied via `wrapRoutes` in `server.ts`).
 - Allowed origins are read from `ALLOWED_ORIGINS` and support comma-separated values.
 - Preflight (`OPTIONS`) rejects disallowed origins with `403`.
+- Allowed methods: `GET`, `POST`, `PATCH`, `OPTIONS`.
 - Credentials are enabled (`Access-Control-Allow-Credentials: true`).
 
 ## Routes
@@ -190,6 +192,23 @@ another.
 - Success: `200` `{ "success": true, "authenticated": true, "driver": { ... } }`
 - Failure: `401` `{ "success": false, "authenticated": false }`
 
+### GET /buses
+
+- Purpose: The bus id -> route name list, read by the website (map, drawer) and the driver app's bus
+  picker. Called as `/api/buses` in production (exact-match nginx block, `authme` zone).
+- Auth: None. Route names are not secret, and the driver app reads this before sign-in.
+- Rate limit: 600 requests / 60 seconds per IP (every page load calls it, and a campus is one IP).
+- Success: `200` `{ "success": true, "buses": [ { "id": 1, "name": "MMC 2A" }, ... ] }`, sorted by
+  name, ignoring case.
+- Also registered as `/api/buses`, for local dev where the driver app talks to the backend with no
+  nginx to strip the prefix. nginx never forwards that path in production.
+- Served from memory: the backend reads the table once after each start and again only after an
+  add or rename through the admin routes. An edit made straight in the database (psql, the Neon
+  console) does not show until the backend restarts.
+- Ids are stable: driver phones send them in `POST /update` and the map keys on them. The `buses`
+  table is seeded once, into an empty table, with the ids the old hardcoded list used (1–102, plus
+  103 "Ashok Nagar 16F"); see `backend/data/seedBuses.ts`.
+
 ## Admin Routes
 
 Registered as `/admin/*`; reached from the browser as `/api/admin/*`, since nginx strips the `/api`
@@ -317,6 +336,29 @@ None of these routes are rate limited.
   and the `role` claim and never touches the database, so a token minted before the reset keeps
   working — for `/update` and `/driver/me` — until `SESSION_MAX_AGE` elapses.
 
+### POST /api/admin/buses
+
+- Purpose: Add a bus. It gets the next id, and appears on the map and in the driver app with no
+  release.
+- Body: `{ "name": "Ashok Nagar 16F" }`
+- Rules: name trimmed, 1–60 characters, unique ignoring case.
+- Success: `200` `{ "success": true, "bus": { "id", "name" } }`
+- `409` `{ "success": false, "error": "A bus with that name already exists" }`. The unique index on
+  `lower(name)` is the check, so two concurrent adds of the same name cannot both succeed.
+
+### PATCH /api/admin/buses
+
+- Purpose: Rename a bus. The id does not change.
+- Body: `{ "id": 103, "name": "Ashok Nagar 16F" }`
+- Rules: as for adding; `id` a positive integer. Renaming a bus to its own name in a different case
+  is allowed.
+- Success: `200` `{ "success": true, "bus": { "id", "name" } }`
+- `404` `{ "success": false, "error": "No such bus" }`
+- `409` `{ "success": false, "error": "A bus with that name already exists" }`
+
+There is no delete. A driver who still had a deleted bus selected would keep sending its id, and the
+map would show a marker with no name.
+
 ## Auth and Session Details
 
 - Cookie name: `sessionToken`
@@ -371,6 +413,7 @@ share state across replicas.
 | `/auth/register`       | 100 requests / 300s |
 | `/auth/login`          | 100 requests / 300s |
 | `/driver/login`        | 10 requests / 300s  |
+| `/buses`               | 600 requests / 60s  |
 
 Everything else (`/stream`, `/update`, `/health`, `/auth/me`, `/auth/logout`, `/admin/*`) is
 unlimited in the backend and fronted by nginx's `limit_req` zones instead.

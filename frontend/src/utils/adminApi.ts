@@ -1,4 +1,5 @@
 import api from './axiosInstance';
+import type { BusRoute } from './busesApi';
 
 /**
  * The admin API lives at /admin/* on the backend, but how the browser reaches
@@ -67,4 +68,7 @@ export const adminApi = {
     resetDriverPassword: (email: string, password: string) =>
         api.post(`${PREFIX}/drivers/password`, { email, password }),
     removeDriver: (email: string) => api.delete(`${PREFIX}/drivers`, { email }),
+
+    createBus: (name: string) => api.post<{ bus: BusRoute }>(`${PREFIX}/buses`, { name }),
+    renameBus: (id: number, name: string) => api.patch<{ bus: BusRoute }>(`${PREFIX}/buses`, { id, name }),
 };

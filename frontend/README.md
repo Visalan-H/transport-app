@@ -43,6 +43,9 @@ them.
   in `src/context/`. That split is required: `react-refresh/only-export-components`
   is enforced in CI and fails any file exporting both a component and a
   non-component.
+- Bus names come from `GET /api/buses` through `src/hooks/useBuses.ts`: one
+  shared request per page load, retried with backoff on failure. Until it
+  loads, the map and drawer show the raw bus id.
 - Path alias `@` → `src`.
 - Map icon/image registration is resilient across route navigation.
 - Nearby bus calculation is bounded for better performance.

@@ -4,6 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { adminApi, type AccessRequest, type AllowedEmail, type BulkAddResult, type Person } from '@/utils/adminApi';
+import { fetchBuses, type BusRoute } from '@/utils/busesApi';
+import { forgetBuses } from '@/hooks/useBuses';
 import { useAuth } from '@/hooks/useAuth';
 import { parseEmailText } from '@/utils/parseEmailList';
 import { formatDate } from '@/utils/formatTime';
@@ -11,7 +13,7 @@ import { downloadCsv } from '@/utils/downloadCsv';
 import { errorMessage } from '@/utils/errorMessage';
 import { FieldNote } from '@/components/ui/field-note';
 import { useFieldNotes } from '@/hooks/useFieldNotes';
-import { driverNameProblem, emailProblem, optionalPasswordProblem } from '@/utils/fieldRules';
+import { busNameProblem, driverNameProblem, emailProblem, optionalPasswordProblem } from '@/utils/fieldRules';
 import {
     Loader2,
     Plus,
@@ -29,9 +31,11 @@ import {
     Send,
     X,
     UserPlus,
+    Route,
+    Pencil,
 } from 'lucide-react';
 
-type Tab = 'invites' | 'students' | 'drivers';
+type Tab = 'invites' | 'students' | 'drivers' | 'buses';
 
 type Issued = { email: string; password: string };
 
@@ -50,6 +54,7 @@ export default function Admin() {
     const [requests, setRequests] = useState<AccessRequest[]>([]);
     const [students, setStudents] = useState<Person[]>([]);
     const [drivers, setDrivers] = useState<Person[]>([]);
+    const [buses, setBuses] = useState<BusRoute[]>([]);
 
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState<string | null>(null);
@@ -64,16 +69,21 @@ export default function Admin() {
     const refresh = useCallback(async () => {
         setError(null);
         try {
-            const [a, r, u, d] = await Promise.all([
+            // The bus list is caught on its own: it is a public endpoint behind its own nginx block, and
+            // it failing should cost the Buses tab, not invites, students and drivers too.
+            const [a, r, u, d, b] = await Promise.all([
                 adminApi.listAllowedEmails(),
                 adminApi.listAccessRequests(),
                 adminApi.listUsers(),
                 adminApi.listDrivers(),
+                fetchBuses().catch(() => null),
             ]);
             setInvites(a.data.emails ?? []);
             setRequests(r.data.requests ?? []);
             setStudents(u.data.users ?? []);
             setDrivers(d.data.drivers ?? []);
+            if (b) setBuses(b.data.buses ?? []);
+            else setError('Could not load the bus list');
         } catch (err) {
             setError(errorMessage(err, 'Could not load admin data'));
         } finally {
@@ -131,6 +141,7 @@ export default function Admin() {
         },
         { id: 'students', label: 'Students', icon: <Users size={16} />, count: students.length },
         { id: 'drivers', label: 'Drivers', icon: <Bus size={16} />, count: drivers.length },
+        { id: 'buses', label: 'Buses', icon: <Route size={16} />, count: buses.length },
     ];
 
     return (
@@ -147,7 +158,9 @@ export default function Admin() {
                     </button>
                 </div>
 
-                <div className="flex gap-1 rounded-xl border border-border/60 bg-card/50 p-1">
+                {/* Two rows on a phone: four tabs side by side at 360px truncate every label to
+                    a letter or two. */}
+                <div className="grid grid-cols-2 gap-1 rounded-xl border border-border/60 bg-card/50 p-1 sm:flex">
                     {tabs.map((t) => (
                         <button
                             key={t.id}
@@ -162,8 +175,8 @@ export default function Admin() {
                                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                             }`}
                         >
-                            {/* Icon is decoration on a phone -- three tabs with icon, label and two badges
-                                do not fit in 360px, and the label is the part that carries meaning. */}
+                            {/* Icon is decoration on a phone -- a half-width tab with icon, label and two
+                                badges does not fit in 360px, and the label is the part that carries meaning. */}
                             <span className="hidden sm:contents">{t.icon}</span>
                             <span className="truncate">{t.label}</span>
                             <span className="shrink-0 rounded-full bg-muted px-1.5 text-xs tabular-nums text-muted-foreground">
@@ -203,6 +216,7 @@ export default function Admin() {
                     <StudentsTab students={students} busy={busy} run={run} currentEmail={user?.email ?? ''} />
                 )}
                 {tab === 'drivers' && <DriversTab drivers={drivers} busy={busy} run={run} onIssued={setIssued} />}
+                {tab === 'buses' && <BusesTab buses={buses} busy={busy} run={run} />}
             </div>
         </div>
     );
@@ -1031,5 +1045,222 @@ function DriversTab({
                 )}
             </SectionCard>
         </div>
+    );
+}
+
+// --- buses ------------------------------------------------------------------
+
+/** Lowercased names of every bus except `exceptId`, for the duplicate check in busNameProblem. */
+const takenNames = (buses: BusRoute[], exceptId?: number): Set<string> =>
+    new Set(buses.filter((b) => b.id !== exceptId).map((b) => b.name.toLowerCase()));
+
+/**
+ * Add and rename only. There is no delete: a driver who still has a removed bus selected would keep
+ * broadcasting its id, and the map would show a marker with no name.
+ */
+function BusesTab({ buses, busy, run }: { buses: BusRoute[]; busy: string | null; run: RunFn }) {
+    const [name, setName] = useState('');
+    const [query, setQuery] = useState('');
+
+    const filtered = useMemo(() => buses.filter((b) => matchesQuery(query, b.name, String(b.id))), [buses, query]);
+    const taken = useMemo(() => takenNames(buses), [buses]);
+
+    const exportCsv = () =>
+        downloadCsv(
+            'buses.csv',
+            ['Id', 'Name'],
+            buses.map((b) => [String(b.id), b.name]),
+        );
+
+    const fields = useFieldNotes();
+    const problem = busNameProblem(name, taken);
+    const note = fields.note('name', name, problem);
+
+    const add = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!fields.check(problem)) return;
+        const trimmed = name.trim();
+        const ok = await run(
+            'create-bus',
+            async () => {
+                await adminApi.createBus(trimmed);
+                forgetBuses();
+            },
+            `Added ${trimmed}.`,
+        );
+        if (ok) {
+            setName('');
+            fields.reset();
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <SectionCard>
+                <div className="space-y-1">
+                    <h2 className="font-semibold text-foreground">Add a bus</h2>
+                    <p className="text-sm text-muted-foreground">
+                        Shows up on the map and in the driver app's bus list straight away, no app update needed.
+                    </p>
+                </div>
+                <form onSubmit={add} noValidate className="space-y-3">
+                    <div className="space-y-1.5">
+                        <Label htmlFor="b-name" className="ml-1 text-xs font-semibold uppercase tracking-wider">
+                            Name
+                        </Label>
+                        <Input
+                            id="b-name"
+                            required
+                            placeholder="Ashok Nagar 16F"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            onBlur={() => fields.touch('name')}
+                            aria-invalid={Boolean(note)}
+                            aria-describedby={note ? 'b-name-note' : undefined}
+                            className="h-11 rounded-xl"
+                        />
+                        <FieldNote id="b-name-note" message={note} />
+                    </div>
+                    <Button
+                        type="submit"
+                        disabled={busy === 'create-bus'}
+                        className="h-11 w-full rounded-xl font-semibold"
+                    >
+                        {busy === 'create-bus' ? (
+                            <span className="flex items-center gap-2">
+                                <Loader2 className="size-4 animate-spin" /> Adding…
+                            </span>
+                        ) : (
+                            'Add bus'
+                        )}
+                    </Button>
+                </form>
+            </SectionCard>
+
+            <SectionCard>
+                <h2 className="font-semibold text-foreground">Buses</h2>
+                {buses.length > 0 && (
+                    <SearchExportBar
+                        query={query}
+                        onQuery={setQuery}
+                        placeholder="Search name or number…"
+                        onExport={exportCsv}
+                        exportDisabled={buses.length === 0}
+                    />
+                )}
+                {buses.length === 0 ? (
+                    <EmptyRow text="No buses yet." />
+                ) : filtered.length === 0 ? (
+                    <EmptyRow text="No matches." />
+                ) : (
+                    <ul className="divide-y divide-border/60">
+                        {filtered.map((b) => (
+                            <BusRow key={b.id} bus={b} buses={buses} busy={busy} run={run} />
+                        ))}
+                    </ul>
+                )}
+            </SectionCard>
+        </div>
+    );
+}
+
+/** One bus, with its name editable in place. */
+function BusRow({ bus, buses, busy, run }: { bus: BusRoute; buses: BusRoute[]; busy: string | null; run: RunFn }) {
+    const [editing, setEditing] = useState(false);
+    const [name, setName] = useState(bus.name);
+
+    const fields = useFieldNotes();
+    const taken = useMemo(() => takenNames(buses, bus.id), [buses, bus.id]);
+    const problem = busNameProblem(name, taken);
+    const note = fields.note('name', name, problem);
+    const key = `rename-bus-${bus.id}`;
+    const noteId = `b-${bus.id}-note`;
+
+    const cancel = () => {
+        setEditing(false);
+        setName(bus.name);
+        fields.reset();
+    };
+
+    const save = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const trimmed = name.trim();
+        if (trimmed === bus.name) return cancel();
+        if (!fields.check(problem)) return;
+        const ok = await run(
+            key,
+            async () => {
+                await adminApi.renameBus(bus.id, trimmed);
+                forgetBuses();
+            },
+            `Renamed to ${trimmed}.`,
+        );
+        if (ok) {
+            setEditing(false);
+            fields.reset();
+        }
+    };
+
+    if (!editing) {
+        return (
+            <li className="flex items-center justify-between gap-3 py-3.5">
+                <div className="min-w-0">
+                    <p className="truncate text-sm text-foreground">{bus.name}</p>
+                    <p className="truncate text-xs tabular-nums text-muted-foreground">#{bus.id}</p>
+                </div>
+                <button
+                    onClick={() => {
+                        setName(bus.name);
+                        setEditing(true);
+                    }}
+                    className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    aria-label={`Rename ${bus.name}`}
+                >
+                    <Pencil size={16} />
+                </button>
+            </li>
+        );
+    }
+
+    return (
+        <li className="py-3.5">
+            <form onSubmit={save} noValidate className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                    <Input
+                        autoFocus
+                        required
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        onBlur={() => fields.touch('name')}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Escape') cancel();
+                        }}
+                        aria-label={`New name for bus #${bus.id}`}
+                        aria-invalid={Boolean(note)}
+                        aria-describedby={note ? noteId : undefined}
+                        className="h-10 rounded-xl"
+                    />
+                    <Button
+                        type="submit"
+                        disabled={busy === key}
+                        className="h-10 shrink-0 rounded-xl px-3"
+                        aria-label="Save name"
+                    >
+                        {busy === key ? <Loader2 className="size-4 animate-spin" /> : <Check size={16} />}
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={cancel}
+                        className="h-10 shrink-0 rounded-xl px-3"
+                        aria-label="Cancel rename"
+                    >
+                        <X size={16} />
+                    </Button>
+                </div>
+                <FieldNote id={noteId} message={note} />
+                <p className="ml-1 text-xs tabular-nums text-muted-foreground">#{bus.id}</p>
+            </form>
+        </li>
     );
 }
