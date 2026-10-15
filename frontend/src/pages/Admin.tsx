@@ -55,6 +55,9 @@ export default function Admin() {
     const [students, setStudents] = useState<Person[]>([]);
     const [drivers, setDrivers] = useState<Person[]>([]);
     const [buses, setBuses] = useState<BusRoute[]>([]);
+    // False until the list has loaded once. An empty list and a failed load must not look the same:
+    // "0" and "No buses yet" after a failure reads as every route having been lost.
+    const [busesLoaded, setBusesLoaded] = useState(false);
 
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState<string | null>(null);
@@ -82,8 +85,10 @@ export default function Admin() {
             setRequests(r.data.requests ?? []);
             setStudents(u.data.users ?? []);
             setDrivers(d.data.drivers ?? []);
-            if (b) setBuses(b.data.buses ?? []);
-            else setError('Could not load the bus list');
+            if (b) {
+                setBuses(b.data.buses ?? []);
+                setBusesLoaded(true);
+            } else setError('Could not load the bus list');
         } catch (err) {
             setError(errorMessage(err, 'Could not load admin data'));
         } finally {
@@ -131,7 +136,7 @@ export default function Admin() {
         );
     }
 
-    const tabs: { id: Tab; label: string; icon: React.ReactNode; count: number; pending?: number }[] = [
+    const tabs: { id: Tab; label: string; icon: React.ReactNode; count: number | string; pending?: number }[] = [
         {
             id: 'invites',
             label: 'Invites',
@@ -141,7 +146,7 @@ export default function Admin() {
         },
         { id: 'students', label: 'Students', icon: <Users size={16} />, count: students.length },
         { id: 'drivers', label: 'Drivers', icon: <Bus size={16} />, count: drivers.length },
-        { id: 'buses', label: 'Buses', icon: <Route size={16} />, count: buses.length },
+        { id: 'buses', label: 'Buses', icon: <Route size={16} />, count: busesLoaded ? buses.length : '–' },
     ];
 
     return (
@@ -216,7 +221,7 @@ export default function Admin() {
                     <StudentsTab students={students} busy={busy} run={run} currentEmail={user?.email ?? ''} />
                 )}
                 {tab === 'drivers' && <DriversTab drivers={drivers} busy={busy} run={run} onIssued={setIssued} />}
-                {tab === 'buses' && <BusesTab buses={buses} busy={busy} run={run} />}
+                {tab === 'buses' && <BusesTab buses={buses} loaded={busesLoaded} busy={busy} run={run} />}
             </div>
         </div>
     );
@@ -1058,7 +1063,17 @@ const takenNames = (buses: BusRoute[], exceptId?: number): Set<string> =>
  * Add and rename only. There is no delete: a driver who still has a removed bus selected would keep
  * broadcasting its id, and the map would show a marker with no name.
  */
-function BusesTab({ buses, busy, run }: { buses: BusRoute[]; busy: string | null; run: RunFn }) {
+function BusesTab({
+    buses,
+    loaded,
+    busy,
+    run,
+}: {
+    buses: BusRoute[];
+    loaded: boolean;
+    busy: string | null;
+    run: RunFn;
+}) {
     const [name, setName] = useState('');
     const [query, setQuery] = useState('');
 
@@ -1148,7 +1163,9 @@ function BusesTab({ buses, busy, run }: { buses: BusRoute[]; busy: string | null
                         exportDisabled={buses.length === 0}
                     />
                 )}
-                {buses.length === 0 ? (
+                {!loaded ? (
+                    <EmptyRow text="Couldn't load the bus list. Tap refresh to try again." />
+                ) : buses.length === 0 ? (
                     <EmptyRow text="No buses yet." />
                 ) : filtered.length === 0 ? (
                     <EmptyRow text="No matches." />
