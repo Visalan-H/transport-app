@@ -21,9 +21,14 @@ class Buses {
     // never land after a fresh fetch and overwrite it.
     static Future<void>? _cacheLoad;
 
+    // The storage read is caught inside: this future is memoised, so if it
+    // could fail, every later refresh() would rethrow the same error and never
+    // reach the server until the app was restarted.
     static Future<void> _loadCache() => _cacheLoad ??= () async {
-            final cached = decode(await Store.busList());
-            if (cached != null && cached.isNotEmpty) names.value = cached;
+            try {
+                final cached = decode(await Store.busList());
+                if (cached != null && cached.isNotEmpty) names.value = cached;
+            } catch (_) {}
         }();
 
     /// Never throws. On any failure the current list (cache or bundled) stays.
@@ -32,7 +37,11 @@ class Buses {
         final fetched = await Api.fetchBuses(baseUrl: Config.authBaseUrl);
         if (fetched == null || fetched.isEmpty) return;
         names.value = fetched;
-        await Store.setBusList(encode(fetched));
+        try {
+            await Store.setBusList(encode(fetched));
+        } catch (_) {
+            // Not saved, so the next start shows the old list until it fetches again.
+        }
     }
 
     static String encode(Map<int, String> buses) =>
