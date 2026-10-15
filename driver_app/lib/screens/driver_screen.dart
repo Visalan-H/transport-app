@@ -7,7 +7,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../config.dart';
-import '../data/bus_routes.dart';
+import '../data/buses.dart';
 import '../data/store.dart';
 import '../l10n.dart';
 import '../services/location_task.dart';
@@ -785,8 +785,15 @@ class _BusSelector extends StatelessWidget {
 
     @override
     Widget build(BuildContext context) {
+        return ValueListenableBuilder<Map<int, String>>(
+            valueListenable: Buses.names,
+            builder: (context, names, _) => _build(context, names),
+        );
+    }
+
+    Widget _build(BuildContext context, Map<int, String> names) {
         final k = Tk(context);
-        final selectedName = busId.isEmpty ? null : secBusRoutes[int.tryParse(busId)];
+        final selectedName = busId.isEmpty ? null : names[int.tryParse(busId)];
 
         return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -867,13 +874,30 @@ class _BusPickerSheetState extends State<_BusPickerSheet> {
     String _search = '';
 
     @override
+    void initState() {
+        super.initState();
+        // The list on screen is the cached one; this swaps in the server's
+        // copy when it arrives, so a route added on /admin minutes ago shows up.
+        Buses.refresh();
+    }
+
+    @override
     Widget build(BuildContext context) {
+        return ValueListenableBuilder<Map<int, String>>(
+            valueListenable: Buses.names,
+            builder: (context, names, _) => _build(context, names),
+        );
+    }
+
+    Widget _build(BuildContext context, Map<int, String> names) {
         final k = Tk(context);
         final q = _search.toLowerCase();
-        final entries = secBusRoutes.entries
+        // By name, not id: a newly added bus gets the next id, and sorting by
+        // id would always bury it at the bottom.
+        final entries = names.entries
             .where((e) => e.value.toLowerCase().contains(q))
             .toList()
-          ..sort((a, b) => a.key.compareTo(b.key));
+          ..sort((a, b) => a.value.toLowerCase().compareTo(b.value.toLowerCase()));
 
         final media = MediaQuery.of(context);
         final keyboardHeight = media.viewInsets.bottom;
@@ -955,6 +979,24 @@ class _BusPickerSheetState extends State<_BusPickerSheet> {
                                         );
                                     },
                                   ),
+                        ),
+                        // Pinned under the list rather than inside it, so it is
+                        // visible without scrolling and also when a search finds
+                        // nothing. A typed-in name is deliberately not offered:
+                        // typos would split one bus into several map markers.
+                        Divider(height: 1, color: k.border.withValues(alpha: 0.4)),
+                        Padding(
+                            padding: EdgeInsets.fromLTRB(
+                                16,
+                                12,
+                                16,
+                                12 + MediaQuery.of(context).padding.bottom,
+                            ),
+                            child: Text(
+                                widget.t.busNotListed,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 13, color: k.mutedFg),
+                            ),
                         ),
                     ],
                 ),

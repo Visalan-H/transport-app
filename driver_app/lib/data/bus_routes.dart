@@ -1,12 +1,8 @@
-// GENERATED FILE -- DO NOT EDIT.
+// Offline fallback for the bus list, frozen as it was at driver app v1.0.0.
 //
-// Written by scripts/generate-bus-routes.ts from frontend/src/constants/BusIdMap.ts, which is the
-// source of truth for bus id -> route name. Edit that file and re-run:
-//
-//   bun scripts/generate-bus-routes.ts
-//
-// CI regenerates this and fails if the result differs, so a change to one side cannot be merged
-// without the other.
+// The real list lives on the server (GET /api/buses) and is edited on the website's /admin page.
+// The app fetches and caches it (see buses.dart) and reads this map only on a phone that has never
+// reached the server. Do not edit it to add a route: add the route on /admin instead.
 const Map<int, String> secBusRoutes = {
     1: "MMC 2A",
     2: "Anna Nagar-II 15A",

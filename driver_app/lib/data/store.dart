@@ -11,6 +11,7 @@ class Store {
     static const _kBusId = 'polaris_bus_id';
     static const _kLang = 'polaris_lang';
     static const _kDriverName = 'polaris_driver_name';
+    static const _kBusList = 'polaris_bus_list';
 
     static Future<SharedPreferences> get _p => SharedPreferences.getInstance();
 
@@ -23,6 +24,10 @@ class Store {
 
     static Future<String?> driverName() async => (await _p).getString(_kDriverName);
     static Future<void> setDriverName(String v) async => (await _p).setString(_kDriverName, v);
+
+    /// Last bus list fetched from the server, as JSON. See [Buses].
+    static Future<String?> busList() async => (await _p).getString(_kBusList);
+    static Future<void> setBusList(String v) async => (await _p).setString(_kBusList, v);
 
     static Future<bool> isTamil() async => (await _p).getBool(_kLang) ?? false;
     static Future<void> setTamil(bool v) async => (await _p).setBool(_kLang, v);

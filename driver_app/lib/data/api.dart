@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'buses.dart';
+
 /// Outcome of a location push. The caller MUST treat [authFailed] and
 /// [failed] differently: an auth failure will never recover on its own and has
 /// to be surfaced to the driver, whereas a network failure should be retried
@@ -56,6 +58,22 @@ class Api {
             return LoginResult.err('Unexpected server response');
         } catch (_) {
             return LoginResult.err('Cannot reach the server');
+        }
+    }
+
+    /// GET {authBaseUrl}/api/buses -> { success, buses: [{ id, name }] }.
+    /// Public, no token. Null on any failure, so the caller keeps its cached list.
+    static Future<Map<int, String>?> fetchBuses({required String baseUrl}) async {
+        try {
+            final res = await _client
+                .get(Uri.parse('$baseUrl/api/buses'))
+                .timeout(const Duration(seconds: 15));
+            if (res.statusCode != 200) return null;
+            final body = jsonDecode(res.body);
+            if (body is! Map<String, dynamic>) return null;
+            return Buses.parseList(body['buses']);
+        } catch (_) {
+            return null;
         }
     }
 

@@ -65,8 +65,8 @@ lib/
   theme.dart
   data/
     api.dart               login + update calls
-    bus_routes.dart        bus ID -> route name
-    store.dart             SharedPreferences: JWT, bus ID, name, language
+    bus_routes.dart        offline fallback bus list (frozen)
+    store.dart             SharedPreferences: JWT, bus ID, name, language, bus list
   screens/
     login_screen.dart
     driver_screen.dart     start/stop, status, bus picker
@@ -76,8 +76,12 @@ lib/
     lang_toggle.dart
 ```
 
-`bus_routes.dart` is a verbatim port of `frontend/src/constants/BusIdMap.ts`.
-**Keep the two in sync** — there is no shared source for them.
+The bus list comes from the server (`GET {AUTH_BASE_URL}/api/buses`), fetched at
+start and whenever the picker opens, and cached on the phone. A failed fetch
+uses the cache. `bus_routes.dart` is only used before the first successful
+fetch, and is never edited: routes are added and renamed on the website's
+`/admin` page. Against a bare local backend (no nginx) `/api/buses` 404s, so the
+app shows the cached or bundled list.
 
 ## Running locally
 

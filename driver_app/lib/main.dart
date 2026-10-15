@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
+import 'data/buses.dart';
 import 'data/store.dart';
 import 'l10n.dart';
 import 'screens/driver_screen.dart';
@@ -11,6 +14,9 @@ void main() {
     WidgetsFlutterBinding.ensureInitialized();
     // Required before the UI can exchange data with the background task.
     FlutterForegroundTask.initCommunicationPort();
+    // Not awaited: the cached or bundled list shows meanwhile, and the picker
+    // updates in place when the fetch lands.
+    unawaited(Buses.refresh());
     runApp(const PolarisApp());
 }
 
