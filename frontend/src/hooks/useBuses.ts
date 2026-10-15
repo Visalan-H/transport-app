@@ -30,12 +30,22 @@ export function useBuses(): BusNames {
     useEffect(() => {
         if (cached) return;
         let live = true;
-        load().then(
-            (loaded) => live && setNames(loaded),
-            () => {},
-        );
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        // Retries while mounted, backing off to once a minute: a map left open on a failed first
+        // fetch would otherwise show bare ids until the student reloads. Concurrent callers share
+        // one request through `inflight`, so several mounted readers do not multiply the traffic.
+        const attempt = (delayMs: number) => {
+            load().then(
+                (loaded) => live && setNames(loaded),
+                () => {
+                    if (live) timer = setTimeout(() => attempt(Math.min(delayMs * 2, 60_000)), delayMs);
+                },
+            );
+        };
+        attempt(5_000);
         return () => {
             live = false;
+            clearTimeout(timer);
         };
     }, []);
 

@@ -69,18 +69,21 @@ export default function Admin() {
     const refresh = useCallback(async () => {
         setError(null);
         try {
+            // The bus list is caught on its own: it is a public endpoint behind its own nginx block, and
+            // it failing should cost the Buses tab, not invites, students and drivers too.
             const [a, r, u, d, b] = await Promise.all([
                 adminApi.listAllowedEmails(),
                 adminApi.listAccessRequests(),
                 adminApi.listUsers(),
                 adminApi.listDrivers(),
-                fetchBuses(),
+                fetchBuses().catch(() => null),
             ]);
             setInvites(a.data.emails ?? []);
             setRequests(r.data.requests ?? []);
             setStudents(u.data.users ?? []);
             setDrivers(d.data.drivers ?? []);
-            setBuses(b.data.buses ?? []);
+            if (b) setBuses(b.data.buses ?? []);
+            else setError('Could not load the bus list');
         } catch (err) {
             setError(errorMessage(err, 'Could not load admin data'));
         } finally {
