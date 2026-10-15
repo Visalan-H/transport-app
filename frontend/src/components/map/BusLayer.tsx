@@ -1,8 +1,8 @@
 import { Source, Layer } from 'react-map-gl/maplibre';
 import type { TrackedBus } from '@/utils/busFacing';
-import { SEC_Bus_Routes } from '../../constants/BusIdMap';
 import { useBusLayerProps, useBusGeoJSON } from '../../hooks/useBusLayer';
 import { useNow } from '../../hooks/useNow';
+import { useBuses } from '../../hooks/useBuses';
 
 type BusLayerProps = {
     buses: TrackedBus[];
@@ -15,7 +15,8 @@ export const BusLayer = ({ buses, theme }: BusLayerProps) => {
     // snapshot arrives (the stream dedupes unchanged snapshots, see
     // useLocationStream's hasBusSnapshotChanged).
     const now = useNow(5000);
-    const geojson = useBusGeoJSON(buses, SEC_Bus_Routes, now);
+    const names = useBuses();
+    const geojson = useBusGeoJSON(buses, names, now);
 
     return (
         <Source id="buses" type="geojson" data={geojson}>

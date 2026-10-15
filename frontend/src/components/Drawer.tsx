@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import { ChevronUp, ChevronDown, Star } from 'lucide-react';
 import type { BusDetails } from '../../../types';
-import { SEC_Bus_Routes } from '@/constants/BusIdMap';
 import { LoadingSpinner } from './LoadingSpinner';
 import type { MapRef } from 'react-map-gl/maplibre';
 import zoomTo from '@/utils/zoomTo';
 import { useDelayedVisibility } from '@/hooks/useDelayedVisibility';
 import { useFavorites } from '@/hooks/useFavorites';
 import { useNow } from '@/hooks/useNow';
+import { useBuses } from '@/hooks/useBuses';
 import { formatAgo } from '@/utils/formatTime';
 import { STALE_AFTER_MS } from '@/hooks/useBusLayer';
 
@@ -24,6 +24,7 @@ export function AppDrawer({ nearbyBuses, isLoadingLocation, mapRef }: AppDrawerP
     const [favoritesOnly, setFavoritesOnly] = useState(false);
     const isVisible = useDelayedVisibility({ delayMs: 100 });
     const { favorites, toggle, isFavorite } = useFavorites();
+    const names = useBuses();
     // Ticks so the "last seen" ages count up even when no new snapshot arrives.
     // Only fast while the list is open -- collapsed, there is nothing on screen
     // that a per-second re-render would change.
@@ -110,7 +111,7 @@ export function AppDrawer({ nearbyBuses, isLoadingLocation, mapRef }: AppDrawerP
                                         {/* Falls back to the raw id for the same reason the map layer
                                             does: an id with no route name still has to be identifiable,
                                             and an empty heading reads as a broken row. */}
-                                        <h3 className="font-semibold truncate">{SEC_Bus_Routes[bus.id] || bus.id}</h3>
+                                        <h3 className="font-semibold truncate">{names[bus.id] || bus.id}</h3>
                                         <p className="text-sm text-muted-foreground">
                                             {(bus.distance * 1000).toFixed(0)} m away
                                             <span className={stale ? 'text-amber-600 dark:text-amber-500' : ''}>

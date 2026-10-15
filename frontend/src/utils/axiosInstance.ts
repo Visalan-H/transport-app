@@ -23,6 +23,9 @@ export const api = {
     post: <T = unknown>(url: string, data?: unknown): Promise<ApiResponse<T>> =>
         axiosApi.post<T>(url, data).then((r) => ({ status: r.status, data: r.data })),
 
+    patch: <T = unknown>(url: string, data?: unknown): Promise<ApiResponse<T>> =>
+        axiosApi.patch<T>(url, data).then((r) => ({ status: r.status, data: r.data })),
+
     // Admin deletes identify the target by email in the body rather than the
     // URL, keeping addresses out of access logs and proxy history.
     delete: <T = unknown>(url: string, data?: unknown): Promise<ApiResponse<T>> =>

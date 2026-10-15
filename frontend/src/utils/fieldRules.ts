@@ -45,5 +45,15 @@ export const driverNameProblem = (value: string): string | null => {
     return null;
 };
 
+// `taken` holds the other buses' names, lowercased: the server rejects a name that differs only in
+// case, so the note says so before the round trip.
+export const busNameProblem = (value: string, taken: ReadonlySet<string>): string | null => {
+    const name = value.trim();
+    if (!name) return 'Enter a bus name.';
+    if (name.length > 60) return 'Bus name can be at most 60 characters.';
+    if (taken.has(name.toLowerCase())) return 'A bus with that name already exists.';
+    return null;
+};
+
 // Blank is allowed: the admin page generates a password when none is typed.
 export const optionalPasswordProblem = (value: string): string | null => (value ? newPasswordProblem(value) : null);

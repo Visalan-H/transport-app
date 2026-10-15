@@ -46,19 +46,18 @@ transport/
     android/
   simulation/
     sim.ts
-  scripts/
-    generate-bus-routes.ts
   loadtest/
     stream-load.ts
   types/
     index.d.ts
 ```
 
-`scripts/generate-bus-routes.ts` generates `driver_app/lib/data/bus_routes.dart`
-from `frontend/src/constants/BusIdMap.ts`, so the two copies of the bus-ID to
-route-name mapping cannot drift. CI runs it with `--check` and fails on a
-mismatch — drift has no runtime symptom, it just shows students one route name
-and the driver another.
+The bus ID to route-name list lives in Postgres (`buses` table) and is edited on
+`/admin` → Buses. The website and the driver app both read it from
+`GET /api/buses`, so adding or renaming a route needs no release. Buses can be
+added and renamed but not deleted, and ids never change: driver phones send the
+id and the map keys on it. `driver_app/lib/data/bus_routes.dart` is a frozen
+copy the app falls back to only when it has never reached the server.
 
 ## Runtime Behavior
 
