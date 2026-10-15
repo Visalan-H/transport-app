@@ -3,6 +3,7 @@ import { locationRoutes } from './routes/locationRoutes';
 import { driverRoutes } from './routes/driverRoutes';
 import { adminRoutes } from './routes/adminRoutes';
 import { healthRoutes } from './routes/healthRoutes';
+import { busRoutes } from './routes/busRoutes';
 import { handlePreflight, wrapRoutes } from './services/corsService';
 import { startOtpCleanupJob } from './jobs/otpCleanup';
 import { env } from './config/env';
@@ -18,6 +19,7 @@ Bun.serve({
         ...wrapRoutes(driverRoutes),
         ...wrapRoutes(adminRoutes),
         ...wrapRoutes(healthRoutes),
+        ...wrapRoutes(busRoutes),
     },
     fetch(req) {
         if (req.method === 'OPTIONS') return handlePreflight(req);

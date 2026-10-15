@@ -2,6 +2,7 @@ import type { BunRequest } from 'bun';
 import { AllowedEmail } from '../services/allowedEmailService';
 import { AccessRequest } from '../services/accessRequestService';
 import { Driver } from '../services/driverService';
+import { Bus } from '../services/busService';
 import { User } from '../services/userService';
 import { decodeCookie } from '../services/cookieService';
 import { sendInviteEmail, sendInviteEmails } from '../utils/sendInvite';
@@ -12,6 +13,8 @@ import {
     bulkAllowedEmailsSchema,
     createDriverSchema,
     resetDriverPasswordSchema,
+    createBusSchema,
+    renameBusSchema,
 } from '../validations/adminValidations';
 
 const actingAdmin = async (req: BunRequest): Promise<string> => {
@@ -224,4 +227,31 @@ export const handleRemoveDriver = async (req: BunRequest) => {
     if (!removed) return Response.json({ success: false, error: 'No such driver' }, { status: 404 });
 
     return Response.json({ success: true });
+};
+
+// --- buses ------------------------------------------------------------------
+//
+// Listing is public (GET /buses, busController); only changes need an admin.
+
+const DUPLICATE_BUS = 'A bus with that name already exists';
+
+export const handleCreateBus = async (req: BunRequest) => {
+    const result = await validate(createBusSchema, req);
+    if (!result.ok) return result.response;
+
+    const bus = await Bus.create(result.data.name);
+    if (bus === 'duplicate') return Response.json({ success: false, error: DUPLICATE_BUS }, { status: 409 });
+
+    return Response.json({ success: true, bus });
+};
+
+export const handleRenameBus = async (req: BunRequest) => {
+    const result = await validate(renameBusSchema, req);
+    if (!result.ok) return result.response;
+
+    const bus = await Bus.rename(result.data.id, result.data.name);
+    if (bus === 'duplicate') return Response.json({ success: false, error: DUPLICATE_BUS }, { status: 409 });
+    if (!bus) return Response.json({ success: false, error: 'No such bus' }, { status: 404 });
+
+    return Response.json({ success: true, bus });
 };

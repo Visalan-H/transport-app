@@ -10,7 +10,7 @@ const ALLOWED_ORIGINS = raw
 const baseCorsHeaders = {
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,PATCH,OPTIONS',
     Vary: 'Origin',
 };
 

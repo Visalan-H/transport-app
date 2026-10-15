@@ -27,3 +27,15 @@ export const resetDriverPasswordSchema = z.object({
     email: emailSchema,
     password: z.string().min(8, 'Password needs at least 8 characters.'),
 });
+
+// Uniqueness (ignoring case) is enforced by the database, not here -- see busService.
+const busNameSchema = z.string().trim().min(1, 'Enter a bus name.').max(60, 'Bus name can be at most 60 characters.');
+
+export const createBusSchema = z.object({
+    name: busNameSchema,
+});
+
+export const renameBusSchema = z.object({
+    id: z.number().int().positive(),
+    name: busNameSchema,
+});
