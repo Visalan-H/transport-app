@@ -16,10 +16,11 @@ unused Flutter scaffolding.
 The driver signs in, picks their bus once, and presses start. From then on the
 app pushes a location fix every 5 seconds until they press stop.
 
-Both calls go to the backend:
+All calls go to the backend:
 
 | Traffic          | Endpoint             | Auth                         |
 | ---------------- | -------------------- | ---------------------------- |
+| Bus list         | `GET /api/buses`     | none                         |
 | Sign-in          | `POST /driver/login` | email + password             |
 | Location updates | `POST /update`       | Bearer JWT, `role: 'driver'` |
 
@@ -80,8 +81,8 @@ The bus list comes from the server (`GET {AUTH_BASE_URL}/api/buses`), fetched at
 start and whenever the picker opens, and cached on the phone. A failed fetch
 uses the cache. `bus_routes.dart` is only used before the first successful
 fetch, and is never edited: routes are added and renamed on the website's
-`/admin` page. Against a bare local backend (no nginx) `/api/buses` 404s, so the
-app shows the cached or bundled list.
+`/admin` page. The backend answers `/api/buses` directly too, so this works
+against a local backend with no nginx.
 
 ## Running locally
 

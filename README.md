@@ -7,18 +7,18 @@ Polaris is a real-time bus tracking platform for Saveetha transport operations.
 - Live map with SSE updates for all tracked buses.
 - Authenticated student access gated on a paid-transport allowlist: invited students sign up straight from the email link, anyone else verifies with an OTP or requests access.
 - Driver location updates accepted, validated and applied on arrival.
-- An admin page (`/admin`) for invites (single, bulk roster import, access requests), registered students and driver accounts, with search and CSV export.
+- An admin page (`/admin`) for invites (single, bulk roster import, access requests), registered students, driver accounts and the bus list, with search and CSV export.
 - Lightweight architecture optimized for low operational cost.
 
 ## Architecture
 
-| Service    | Role                                                                            |
-| ---------- | ------------------------------------------------------------------------------- |
-| Frontend   | React app, map UI, auth flows                                                   |
-| Backend    | Auth, SSE stream, bus state store, OTP + users                                  |
-| Driver app | Native Android client drivers use to broadcast location (see `driver_app/`)     |
-| Simulation | Generates synthetic bus updates for testing                                     |
-| Postgres   | Stores users, drivers, paid-transport list + OTP hashes (hosted, not on the VM) |
+| Service    | Role                                                                          |
+| ---------- | ----------------------------------------------------------------------------- |
+| Frontend   | React app, map UI, auth flows                                                 |
+| Backend    | Auth, SSE stream, bus state store, OTP + users                                |
+| Driver app | Native Android client drivers use to broadcast location (see `driver_app/`)   |
+| Simulation | Generates synthetic bus updates for testing                                   |
+| Postgres   | Users, drivers, bus list, paid-transport list, OTP hashes (hosted, not on VM) |
 
 ## Current Project Layout
 
@@ -33,7 +33,9 @@ transport/
     jobs/
     config/
     models/
-    db/
+    validations/
+    data/          one-time seed for the buses table
+    scripts/       seed-driver.ts (bootstrap/recovery)
     server.ts
   frontend/
     src/
@@ -54,7 +56,9 @@ transport/
 
 The bus ID to route-name list lives in Postgres (`buses` table) and is edited on
 `/admin` → Buses. The website and the driver app both read it from
-`GET /api/buses`, so adding or renaming a route needs no release. Buses can be
+`GET /api/buses`, so adding or renaming a route needs no release. The backend
+keeps the list in memory and re-reads it only after an admin add or rename, so
+an edit made straight in the database shows only after a backend restart. Buses can be
 added and renamed but not deleted, and ids never change: driver phones send the
 id and the map keys on it. `driver_app/lib/data/bus_routes.dart` is a frozen
 copy the app falls back to only when it has never reached the server.
@@ -68,6 +72,8 @@ copy the app falls back to only when it has never reached the server.
   timer starts on the first subscriber and stops with the last.
 - `POST /update` accepts one plain-text location fix from a driver.
 - `GET /health` is unauthenticated liveness for an uptime monitor.
+- `GET /buses` (reached as `/api/buses`) is the public bus id -> name list,
+  served from memory.
 - `/admin/*` (reached as `/api/admin/*`) requires a session cookie **and** an
   email in `ADMIN_EMAILS`. Not an admin is a `403`, not a `401` — the frontend
   distinguishes the two.

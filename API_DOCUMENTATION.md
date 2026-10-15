@@ -27,6 +27,7 @@ as `/api/admin/*` from the browser, and `GET /buses` is called as `/api/buses`.
   applied via `wrapRoutes` in `server.ts`).
 - Allowed origins are read from `ALLOWED_ORIGINS` and support comma-separated values.
 - Preflight (`OPTIONS`) rejects disallowed origins with `403`.
+- Allowed methods: `GET`, `POST`, `PATCH`, `OPTIONS`.
 - Credentials are enabled (`Access-Control-Allow-Credentials: true`).
 
 ## Routes
@@ -199,6 +200,11 @@ another.
 - Rate limit: 600 requests / 60 seconds per IP (every page load calls it, and a campus is one IP).
 - Success: `200` `{ "success": true, "buses": [ { "id": 1, "name": "MMC 2A" }, ... ] }`, sorted by
   name, ignoring case.
+- Also registered as `/api/buses`, for local dev where the driver app talks to the backend with no
+  nginx to strip the prefix. nginx never forwards that path in production.
+- Served from memory: the backend reads the table once after each start and again only after an
+  add or rename through the admin routes. An edit made straight in the database (psql, the Neon
+  console) does not show until the backend restarts.
 - Ids are stable: driver phones send them in `POST /update` and the map keys on them. The `buses`
   table is seeded once, into an empty table, with the ids the old hardcoded list used (1–102, plus
   103 "Ashok Nagar 16F"); see `backend/data/seedBuses.ts`.
