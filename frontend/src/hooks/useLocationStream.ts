@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { BusDetails } from '../../../types';
 import { resolveFacing, type TrackedBus } from '../utils/busFacing';
+import api from '../utils/axiosInstance';
+import { errorStatus } from '../utils/errorMessage';
 
 const hasBusSnapshotChanged = (prev: TrackedBus[], next: BusDetails[]) => {
     if (prev.length !== next.length) return true;
@@ -46,6 +48,7 @@ export function useLocationStream() {
         // froze until a refresh. Reopen it ourselves, backing off so a whole campus of tabs does not
         // hit the backend in the same second it comes back.
         let retryDelay = 2000;
+        let stopped = false;
 
         const connect = () => {
             source = new EventSource(`${apiUrl}/stream`, { withCredentials: true });
@@ -77,14 +80,31 @@ export function useLocationStream() {
                 // CONNECTING means the browser is already retrying a dropped connection itself.
                 if (source?.readyState !== EventSource.CLOSED) return;
                 source.close();
-                retryTimer = setTimeout(connect, retryDelay);
+                retryTimer = setTimeout(reconnect, retryDelay);
                 retryDelay = Math.min(retryDelay * 2, 30000);
             };
+        };
+
+        // The stream answers an expired session with a 401 too, and no retry fixes that. Ask
+        // /auth/me first so an expired tab stops and says why instead of retrying forever.
+        const reconnect = () => {
+            api.get('/auth/me').then(
+                () => !stopped && connect(),
+                (err: unknown) => {
+                    if (stopped) return;
+                    if (errorStatus(err) === 401) {
+                        setError('Your session expired. Sign in again.');
+                        return;
+                    }
+                    connect();
+                },
+            );
         };
 
         connect();
 
         return () => {
+            stopped = true;
             clearTimeout(retryTimer);
             source?.close();
         };

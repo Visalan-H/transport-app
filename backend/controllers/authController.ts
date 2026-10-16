@@ -44,7 +44,7 @@ export const handleSendOtp = async (req: BunRequest) => {
         return Response.json({ success: true });
     } catch {
         // The code never arrived, so it must not hold the cooldown against an immediate retry.
-        await Otp.delete(email);
+        await Otp.delete(email).catch(() => {});
         return Response.json(
             { success: false, error: "Couldn't send the email. Try again in a minute." },
             { status: 500 },

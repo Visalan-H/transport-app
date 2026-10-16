@@ -115,10 +115,10 @@ same body and the same auth, so no driver app rebuild was needed.
 - Backend and frontend containers run as a non-root user.
 
 There is no token revocation. Logging out, deleting a user or resetting a
-driver's password all leave already-issued tokens valid until `SESSION_MAX_AGE`
-(`DRIVER_SESSION_MAX_AGE` for drivers)
-elapses. Rotating `JOSE_SECRET_KEY` invalidates every session at once and is the
-only way to cut one short.
+driver's password all leave already-issued tokens valid until they expire, after
+`SESSION_MAX_AGE` for students and `DRIVER_SESSION_MAX_AGE` for drivers. Rotating
+`JOSE_SECRET_KEY` invalidates every session at once and is the only way to cut
+one short.
 
 ## Quick Start
 
