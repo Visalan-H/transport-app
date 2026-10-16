@@ -116,6 +116,7 @@ same body and the same auth, so no driver app rebuild was needed.
 
 There is no token revocation. Logging out, deleting a user or resetting a
 driver's password all leave already-issued tokens valid until `SESSION_MAX_AGE`
+(`DRIVER_SESSION_MAX_AGE` for drivers)
 elapses. Rotating `JOSE_SECRET_KEY` invalidates every session at once and is the
 only way to cut one short.
 
@@ -289,6 +290,7 @@ ADMIN_EMAILS=you@example.com
 
 SERVER_PORT=3000
 SESSION_MAX_AGE=604800          # 7 days in seconds
+DRIVER_SESSION_MAX_AGE=5184000  # 60 days in seconds
 SSE_INTERVAL=5000               # SSE broadcast interval (ms)
 BUS_EVICT_AFTER_MS=3600000      # drop a bus from the map after this long with no fix (1h)
 OTP_EXPIRATION_MINUTES=15       # also sets the OTP cleanup job's interval

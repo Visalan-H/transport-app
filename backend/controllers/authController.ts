@@ -10,6 +10,8 @@ import type { BunRequest } from 'bun';
 import { validate } from '../utils/validate';
 import { sendOtpSchema, loginSchema, registerSchema, requestAccessSchema } from '../validations/authValidations';
 
+const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
+
 export const handleSendOtp = async (req: BunRequest) => {
     const result = await validate(sendOtpSchema, req);
     if (!result.ok) return result.response;
@@ -23,6 +25,16 @@ export const handleSendOtp = async (req: BunRequest) => {
         return Response.json({ success: false, error: "This email isn't on the transport list yet." }, { status: 403 });
     }
 
+    // One code per address per minute. The per-IP limit alone let anyone who knew an address flood
+    // its inbox and burn through Gmail's daily sending quota, which stops every OTP and invite.
+    const existing = await Otp.findByEmail(email);
+    if (existing?.createdAt && Date.now() - existing.createdAt.getTime() < OTP_RESEND_COOLDOWN_MS) {
+        return Response.json(
+            { success: false, error: 'A code was just sent. Wait a minute before asking for another.' },
+            { status: 429 },
+        );
+    }
+
     const otp = randomInt(100000, 999999).toString();
     const otpHash = await Bun.password.hash(otp);
     await Otp.create(email, otpHash);
@@ -31,6 +43,8 @@ export const handleSendOtp = async (req: BunRequest) => {
         await sendOtpEmail(email, otp);
         return Response.json({ success: true });
     } catch {
+        // The code never arrived, so it must not hold the cooldown against an immediate retry.
+        await Otp.delete(email);
         return Response.json(
             { success: false, error: "Couldn't send the email. Try again in a minute." },
             { status: 500 },

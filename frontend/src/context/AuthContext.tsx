@@ -47,7 +47,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     localStorage.removeItem('user:v1');
                 }
             })
-            .catch(() => {
+            .catch((err: unknown) => {
+                // Only a 401 means the session is gone. A timeout, 5xx or 429 (a deploy, a slow
+                // network) says nothing about the cookie, so the stored user stands until a request
+                // that does reach the backend says otherwise.
+                if (errorStatus(err) !== 401) return;
                 setUser(null);
                 localStorage.removeItem('user:v1');
             })

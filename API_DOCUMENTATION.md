@@ -90,7 +90,7 @@ data: [{"id":1,"lat":12.34,"lng":56.78,"timestamp":1690000000000}]
 ### POST /auth/send-otp
 
 - Purpose: Generate OTP, store hash, and send email.
-- Rate limit: 60 requests / 300 seconds per IP.
+- Rate limit: 60 requests / 300 seconds per IP, and one code per email per 60 seconds.
 - Request body:
 
 ```json
@@ -101,7 +101,7 @@ data: [{"id":1,"lat":12.34,"lng":56.78,"timestamp":1690000000000}]
 - Errors:
     - `403` email not on the paid-transport allowlist (`ADMIN_EMAILS` addresses are exempt)
     - `500` mail failure
-    - `429` rate limit exceeded
+    - `429` rate limit exceeded, or a code went to this email less than 60 seconds ago
 
 ### POST /auth/request-access
 
@@ -342,7 +342,7 @@ None of these routes are rate limited.
 - `404` `{ "success": false, "error": "No such driver" }`
 - This does **not** revoke tokens already issued. `verifyLocationSender` checks only the signature
   and the `role` claim and never touches the database, so a token minted before the reset keeps
-  working — for `/update` and `/driver/me` — until `SESSION_MAX_AGE` elapses.
+  working — for `/update` and `/driver/me` — until `DRIVER_SESSION_MAX_AGE` elapses.
 
 ### POST /api/admin/buses
 
@@ -375,6 +375,7 @@ map would show a marker with no name.
 - TTL: controlled by `SESSION_MAX_AGE` (seconds)
 - Cookie flags: `HttpOnly`, `SameSite=Strict`, `Secure` in production
 - Driver token claims: `id`, `email`, `username`, `role`
+- Driver token TTL: controlled by `DRIVER_SESSION_MAX_AGE` (seconds), longer than a student session because the app has no refresh
 - Driver tokens are Bearer tokens, not cookies — intended for mobile (Flutter) clients.
 - `role` is `student` for session cookies and `driver` for `/driver/login` tokens. Both are signed
   with the same `JOSE_SECRET_KEY`, so a valid signature alone does not establish which kind of token
@@ -460,7 +461,8 @@ over a key that already works would take a running deployment offline to make a 
 | `NODE_ENV`               | `development` | `production` sets `Secure` on the session cookie                                                                         |
 | `LOG_LEVEL`              | `info`        | One of `info`, `debug`, `warn`                                                                                           |
 | `SERVER_PORT`            | `3000`        | Listen port                                                                                                              |
-| `SESSION_MAX_AGE`        | `604800`      | Token TTL in seconds (7 days)                                                                                            |
+| `SESSION_MAX_AGE`        | `604800`      | Student session TTL in seconds (7 days)                                                                                  |
+| `DRIVER_SESSION_MAX_AGE` | `5184000`     | Driver token TTL in seconds (60 days)                                                                                    |
 | `SSE_INTERVAL`           | `5000`        | SSE broadcast interval in ms                                                                                             |
 | `BUS_EVICT_AFTER_MS`     | `3600000`     | Drop a bus from the snapshot after this long                                                                             |
 | `OTP_EXPIRATION_MINUTES` | `15`          | OTP validity, and the cleanup job's interval                                                                             |
