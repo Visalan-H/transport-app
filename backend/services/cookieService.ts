@@ -25,7 +25,7 @@ export type TokenRole = 'student' | 'driver';
 export async function generateToken(userId: number, email: string, username: string, role: TokenRole): Promise<string> {
     return new SignJWT({ id: userId, email, username, role })
         .setProtectedHeader({ alg: 'HS256' })
-        .setExpirationTime(`${MAX_AGE}s`)
+        .setExpirationTime(`${role === 'driver' ? env.DRIVER_SESSION_MAX_AGE : MAX_AGE}s`)
         .sign(SECRET);
 }
 

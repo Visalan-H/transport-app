@@ -1010,8 +1010,9 @@ function DriversTab({
                                 <div className="flex shrink-0 items-center gap-1">
                                     <button
                                         onClick={() => {
-                                            if (!confirm(`Reset the password for ${d.email}? They will be signed out.`))
-                                                return;
+                                            // A reset revokes nothing: a phone already signed in keeps working.
+                                            const question = `Reset the password for ${d.email}? Their phone stays signed in.`;
+                                            if (!confirm(question)) return;
                                             void reset(d.email);
                                         }}
                                         disabled={busy === `reset-${d.email}`}

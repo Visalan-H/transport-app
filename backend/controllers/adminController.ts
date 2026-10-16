@@ -215,7 +215,7 @@ export const handleResetDriverPassword = async (req: BunRequest) => {
     // This does not revoke anything already issued. verifyLocationSender only
     // checks the JWT signature and role claim and never touches the database,
     // so a token minted before the reset keeps working — for /update and for
-    // /driver/me — until it hits SESSION_MAX_AGE (7 days) on its own.
+    // /driver/me — until it hits DRIVER_SESSION_MAX_AGE (60 days) on its own.
     return Response.json({ success: true });
 };
 

@@ -48,6 +48,8 @@ export default function Signup() {
     // student can ask the admin to add them.
     const [notAuthorized, setNotAuthorized] = useState(false);
     const [requestState, setRequestState] = useState<'idle' | 'sending' | 'sent'>('idle');
+    // A resend replaces the earlier code, so the student has to be told which one to type.
+    const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle');
 
     const { sendOtp, requestAccess, register } = useAuth();
     const navigate = useNavigate();
@@ -87,6 +89,7 @@ export default function Signup() {
         if (result.ok) {
             // The code step has fresh fields, which should not open already flagged.
             fields.reset();
+            setResendState('idle');
             setStep('verify');
         } else if (result.status === 403) {
             setNotAuthorized(true);
@@ -99,8 +102,14 @@ export default function Signup() {
 
     const handleResend = async () => {
         setError(null);
+        setResendState('sending');
         const result = await sendOtp(email);
-        if (!result.ok) setError(result.message || "Couldn't send the code. Try again.");
+        if (result.ok) {
+            setResendState('sent');
+        } else {
+            setResendState('idle');
+            setError(result.message || "Couldn't send the code. Try again.");
+        }
     };
 
     const handleRequestAccess = async () => {
@@ -405,13 +414,16 @@ export default function Signup() {
                                     />
                                 </div>
                                 <p className="text-sm text-muted-foreground ml-1">
-                                    Didn't receive the code?{' '}
+                                    {resendState === 'sent'
+                                        ? 'New code sent. Use the latest one.'
+                                        : "Didn't receive the code?"}{' '}
                                     <button
                                         type="button"
                                         onClick={() => void handleResend()}
-                                        className="font-semibold text-foreground underline-offset-4 hover:underline"
+                                        disabled={resendState === 'sending'}
+                                        className="font-semibold text-foreground underline-offset-4 hover:underline disabled:opacity-60 disabled:no-underline"
                                     >
-                                        Resend
+                                        {resendState === 'sending' ? 'Sending...' : 'Resend'}
                                     </button>
                                 </p>
                             </div>

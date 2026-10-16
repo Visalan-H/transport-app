@@ -49,6 +49,9 @@ const schema = z.object({
     // never fires or a token that is already expired.
     SERVER_PORT: z.coerce.number().int().positive().default(3000),
     SESSION_MAX_AGE: z.coerce.number().int().positive().default(604800),
+    // Drivers get longer than students: there is no refresh, and an expired token signs a driver out
+    // of the app, possibly mid-route, until someone walks them through logging in again.
+    DRIVER_SESSION_MAX_AGE: z.coerce.number().int().positive().default(5184000),
     SSE_INTERVAL: z.coerce.number().int().positive().default(5000),
     BUS_EVICT_AFTER_MS: z.coerce.number().int().positive().default(3600000),
     OTP_EXPIRATION_MINUTES: z.coerce.number().int().positive().default(15),
